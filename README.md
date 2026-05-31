@@ -2,7 +2,7 @@
 
 戸塚重量向け **ToughFlow** の事務・管理者向け PC Web アプリ（Next.js App Router）。
 
-仕様書 `02_app/Doc/` の PC 向け画面（SC-022, SC-031, SC-050, SC-060, SC-070, SC-080）に対応。
+PC 向け画面（SC-022, SC-031, SC-050, SC-060, SC-070, SC-080）に対応。
 
 ## 技術スタック
 
@@ -38,18 +38,19 @@
 ## セットアップ
 
 ```bash
-cd 02_app/pc
+git clone https://github.com/KANIKANIMAN1234/ToughFlow-PC-app.git
+cd ToughFlow-PC-app
 cp .env.example .env.local
 pnpm install
 pnpm dev
 ```
 
-http://localhost:3001 （モバイル版 3000 と並行起動可）
+http://localhost:3001
 
 ## mobile との関係
 
-| 項目 | mobile (`02_app/mobile`) | pc (`02_app/pc`) |
-|------|--------------------------|------------------|
+| 項目 | mobile | pc |
+|------|--------|-----|
 | ポート | 3000 | 3001 |
 | 主利用者 | 現場（field） | 事務・管理者 |
 | 主要画面 | SC-020/030/040 入力 | SC-022/031/060/080 一覧・承認 |
