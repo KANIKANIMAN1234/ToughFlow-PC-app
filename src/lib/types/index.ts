@@ -83,7 +83,7 @@ export interface DailyReportContent {
   workDateEnd?: string | null;
   pickup: { address?: string; company?: string };
   delivery: { address: string; company: string };
-  workTypeId: string;
+  workTypeIds: string[];
   machines: MachineRow[];
   vehicles: VehicleSelection[];
   materials: MaterialValue[];

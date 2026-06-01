@@ -5,13 +5,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/contexts/AuthContext";
-import { DEMO_TENANT_CODE } from "@/lib/seed/masters";
 import type { UserRole } from "@/lib/types";
+
+const ROLE_PRESETS: { role: UserRole; label: string; userName: string }[] = [
+  { role: "office", label: "事務", userName: "事務担当" },
+  { role: "admin", label: "管理者", userName: "管理者" },
+  { role: "manager", label: "部長", userName: "部長" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [tenantCode, setTenantCode] = useState(DEMO_TENANT_CODE);
+  const [tenantCode, setTenantCode] = useState("TOTSUKA");
   const [userName, setUserName] = useState("事務担当");
   const [role, setRole] = useState<UserRole>("office");
   const [error, setError] = useState("");
@@ -49,21 +54,31 @@ export default function LoginPage() {
             onChange={(e) => setUserName(e.target.value)}
           />
           <label className="block space-y-1">
-            <span className="text-sm font-medium">ロール（デモ）</span>
+            <span className="text-sm font-medium">ロール</span>
             <select
               className="w-full rounded-lg border px-3 py-2 text-sm"
               value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
+              onChange={(e) => {
+                const next = e.target.value as UserRole;
+                setRole(next);
+                const preset = ROLE_PRESETS.find((p) => p.role === next);
+                if (preset) setUserName(preset.userName);
+              }}
             >
-              <option value="office">事務（office）</option>
-              <option value="admin">管理者（admin）</option>
-              <option value="manager">部長（manager）</option>
+              {ROLE_PRESETS.map((p) => (
+                <option key={p.role} value={p.role}>
+                  {p.label}（{p.role}）
+                </option>
+              ))}
             </select>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button fullWidth disabled={loading} onClick={handleLogin}>
-            {loading ? "ログイン中…" : "ログイン（デモ）"}
+            {loading ? "ログイン中…" : "ログイン"}
           </Button>
+          <p className="text-center text-xs text-slate-400">
+            m_user に登録されたユーザー名でログインします
+          </p>
         </div>
       </div>
     </div>

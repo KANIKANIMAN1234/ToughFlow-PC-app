@@ -1,22 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listExpenses, updateExpenseStatus } from "@/lib/store/mock-store";
+import { listExpenses, updateExpenseStatus } from "@/lib/db/repository";
+import {
+  getSessionFromRequest,
+  unauthorizedResponse,
+} from "@/lib/auth/session";
 
 export async function GET(request: NextRequest) {
+  const session = getSessionFromRequest(request);
+  if (!session) return unauthorizedResponse();
+
   const status = request.nextUrl.searchParams.get("status") as
     | "submitted"
     | undefined;
   const userId = request.nextUrl.searchParams.get("userId") ?? undefined;
-  return NextResponse.json({
-    expenses: listExpenses({ status: status ?? undefined, userId }),
-  });
+
+  try {
+    const expenses = await listExpenses(session.tenantId, {
+      status: status ?? undefined,
+      userId,
+    });
+    return NextResponse.json({ expenses });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "取得に失敗しました";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const body = await request.json();
-  const { id, status } = body as { id: string; status: "approved" | "rejected" };
-  const expense = updateExpenseStatus(id, status);
-  if (!expense) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+  const session = getSessionFromRequest(request);
+  if (!session) return unauthorizedResponse();
+
+  try {
+    const body = await request.json();
+    const { id, status } = body as { id: string; status: "approved" | "rejected" };
+    const expense = await updateExpenseStatus(
+      session.tenantId,
+      id,
+      status,
+      session.id
+    );
+    if (!expense) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    return NextResponse.json({ expense });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "更新に失敗しました";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-  return NextResponse.json({ expense });
 }
