@@ -19,6 +19,7 @@ const config: Config = {
           border: "#e2e8f0",
         },
       },
+      spacing: { sidebar: "240px" },
       width: { sidebar: "240px" },
     },
   },
