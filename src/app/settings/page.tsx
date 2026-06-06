@@ -28,15 +28,15 @@ export default function SettingsPage() {
 
   return (
     <AppShell title="管理者設定" breadcrumbs={["ToughFlow", "設定"]}>
-      <div className="mb-6 flex gap-2 border-b">
+      <div className="mb-6 flex gap-2 border-b border-surface-border">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            className={`border-b-2 px-4 py-2 text-sm font-medium ${
+            className={`border-b-2 px-4 py-2 text-caption font-normal focus-apple ${
               tab.id === "masters"
-                ? "border-brand-600 text-brand-700"
-                : "border-transparent text-slate-500"
+                ? "border-brand-600 text-brand-600"
+                : "border-transparent text-apple-glyph"
             }`}
           >
             {tab.label}
@@ -46,7 +46,7 @@ export default function SettingsPage() {
 
       <MasterManager />
 
-      <p className="mt-8 text-xs text-slate-400">
+      <p className="mt-8 text-nav-link text-apple-glyph">
         フォルダ設計・権限管理・パートナー共有タブは P2 で実装予定（SC-060）
       </p>
     </AppShell>

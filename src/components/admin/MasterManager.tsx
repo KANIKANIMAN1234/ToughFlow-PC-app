@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/utils";
 import type { CompanyInfo, MasterType } from "@/lib/types";
 
@@ -31,35 +33,23 @@ const MASTER_MENUS: { type: MasterType; label: string; group: string }[] = [
 
 export function MasterManager() {
   const [selected, setSelected] = useState<MasterType>("daily_work_types");
-  const [items, setItems] = useState<MasterItem[]>([]);
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [newName, setNewName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
 
-  const loadItems = useCallback(async (type: MasterType) => {
-    setLoading(true);
-    try {
-      const data = await api.get<{ items: MasterItem[] }>(
-        `/api/admin/masters?type=${type}&includeInactive=true`
-      );
-      setItems(data.items);
-    } finally {
-      setLoading(false);
+  const { data, isLoading, mutate } = useApi<{ items: MasterItem[] }>(
+    `/api/admin/masters?type=${selected}&includeInactive=true`
+  );
+  const { data: companyData, mutate: mutateCompany } = useApi<{
+    companyInfo: CompanyInfo;
+  }>("/api/admin/masters");
+
+  const items = data?.items ?? [];
+
+  useEffect(() => {
+    if (companyData?.companyInfo) {
+      setCompanyInfo(companyData.companyInfo);
     }
-  }, []);
-
-  const loadCompany = useCallback(async () => {
-    const data = await api.get<{ companyInfo: CompanyInfo }>("/api/admin/masters");
-    setCompanyInfo(data.companyInfo);
-  }, []);
-
-  useEffect(() => {
-    void loadItems(selected);
-  }, [selected, loadItems]);
-
-  useEffect(() => {
-    void loadCompany();
-  }, [loadCompany]);
+  }, [companyData]);
 
   async function handleAdd() {
     if (!newName.trim()) return;
@@ -68,7 +58,7 @@ export function MasterManager() {
       item: { name: newName.trim(), label: newName.trim() },
     });
     setNewName("");
-    await loadItems(selected);
+    await mutate();
   }
 
   async function toggleActive(item: MasterItem) {
@@ -77,18 +67,19 @@ export function MasterManager() {
       id: item.id,
       patch: { isActive: !item.isActive },
     });
-    await loadItems(selected);
+    await mutate();
   }
 
   async function handleReset() {
     if (!confirm("初期 seed に戻しますか？")) return;
     await api.post("/api/admin/masters", { type: selected, action: "reset" });
-    await loadItems(selected);
+    await mutate();
   }
 
   async function saveCompany() {
     if (!companyInfo) return;
     await api.patch("/api/admin/masters", { companyInfo });
+    await mutateCompany();
     alert("会社情報を保存しました");
   }
 
@@ -99,7 +90,7 @@ export function MasterManager() {
       <div className="col-span-3 space-y-4">
         {groups.map((group) => (
           <div key={group}>
-            <p className="mb-2 text-xs font-bold uppercase text-slate-400">
+            <p className="mb-2 text-nav-link font-normal uppercase text-apple-glyph">
               {group}
             </p>
             <div className="space-y-1">
@@ -108,10 +99,10 @@ export function MasterManager() {
                   key={menu.type}
                   type="button"
                   onClick={() => setSelected(menu.type)}
-                  className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
+                  className={`block w-full rounded-xl px-3 py-2 text-left text-caption font-normal focus-apple ${
                     selected === menu.type
-                      ? "bg-brand-50 font-semibold text-brand-700"
-                      : "text-slate-600 hover:bg-slate-50"
+                      ? "bg-brand-50 text-brand-600"
+                      : "text-apple-glyph hover:bg-apple-section"
                   }`}
                 >
                   {menu.label}
@@ -147,8 +138,8 @@ export function MasterManager() {
             </Button>
           </div>
 
-          {loading ? (
-            <p className="text-sm text-slate-400">読み込み中…</p>
+          {isLoading && !data ? (
+            <TableSkeleton rows={5} cols={4} />
           ) : (
             <DataTable
               columns={[

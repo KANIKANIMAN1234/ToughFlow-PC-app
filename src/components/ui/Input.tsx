@@ -7,11 +7,13 @@ export function Input({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
   return (
-    <label className="block space-y-1">
-      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+    <label className="block space-y-1.5">
+      {label && (
+        <span className="text-caption font-medium text-apple-text">{label}</span>
+      )}
       <input
         className={cn(
-          "w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500",
+          "w-full rounded-xl border border-surface-border bg-white px-3 py-2.5 text-body text-apple-text focus-apple",
           className
         )}
         {...props}

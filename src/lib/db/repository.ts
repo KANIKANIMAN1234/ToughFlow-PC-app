@@ -624,3 +624,51 @@ export async function updateCompanyInfo(
   if (error) throw new Error(error.message);
   return next;
 }
+
+export type DashboardSummary = {
+  expenses: number;
+  dailyReports: number;
+  dispatch: number;
+  vendorPayments: number;
+};
+
+export async function getDashboardSummary(
+  tenantId: string
+): Promise<DashboardSummary> {
+  const supabase = createAdminClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [expensesRes, reportsRes, dispatchRes, paymentsRes] = await Promise.all([
+    supabase
+      .from("t_expense")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "submitted"),
+    supabase
+      .from("t_daily_report")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId),
+    supabase
+      .from("t_dispatch")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("dispatch_date", today),
+    supabase
+      .from("t_vendor_payment")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .neq("status", "paid"),
+  ]);
+
+  if (expensesRes.error) throw new Error(expensesRes.error.message);
+  if (reportsRes.error) throw new Error(reportsRes.error.message);
+  if (dispatchRes.error) throw new Error(dispatchRes.error.message);
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+
+  return {
+    expenses: expensesRes.count ?? 0,
+    dailyReports: reportsRes.count ?? 0,
+    dispatch: dispatchRes.count ?? 0,
+    vendorPayments: paymentsRes.count ?? 0,
+  };
+}

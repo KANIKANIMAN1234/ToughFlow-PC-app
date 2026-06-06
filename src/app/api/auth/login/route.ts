@@ -5,6 +5,7 @@ import {
   getSessionFromRequest,
   setSessionCookie,
 } from "@/lib/auth/session";
+import { toSupabaseUserMessage } from "@/lib/supabase/admin";
 import type { UserRole } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
     setSessionCookie(response, user);
     return response;
   } catch (e) {
-    const message = e instanceof Error ? e.message : "ログインに失敗しました";
+    const raw = e instanceof Error ? e.message : "ログインに失敗しました";
+    const message = toSupabaseUserMessage(raw);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

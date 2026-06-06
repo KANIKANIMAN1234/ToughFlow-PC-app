@@ -10,15 +10,15 @@ export function DataTable({
   onRowClick?: (index: number) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-surface-border">
-      <table className="min-w-full divide-y divide-surface-border text-sm">
-        <thead className="bg-slate-50">
+    <div className="overflow-x-auto rounded-card border border-surface-border">
+      <table className="min-w-full divide-y divide-surface-border text-body">
+        <thead className="bg-apple-section">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
                 className={cn(
-                  "px-4 py-3 text-left font-semibold text-slate-600",
+                  "px-4 py-3 text-left text-caption font-semibold text-apple-glyph",
                   col.className
                 )}
               >
@@ -32,7 +32,7 @@ export function DataTable({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-slate-400"
+                className="px-4 py-10 text-center text-caption text-apple-glyph"
               >
                 データがありません
               </td>
@@ -41,11 +41,16 @@ export function DataTable({
           {rows.map((row, i) => (
             <tr
               key={i}
-              className={cn(onRowClick && "cursor-pointer hover:bg-brand-50/50")}
+              className={cn(
+                onRowClick && "cursor-pointer transition-colors hover:bg-apple-section/60"
+              )}
               onClick={() => onRowClick?.(i)}
             >
               {columns.map((col) => (
-                <td key={col.key} className={cn("px-4 py-3", col.className)}>
+                <td
+                  key={col.key}
+                  className={cn("px-4 py-3 text-apple-text", col.className)}
+                >
                   {row[col.key]}
                 </td>
               ))}

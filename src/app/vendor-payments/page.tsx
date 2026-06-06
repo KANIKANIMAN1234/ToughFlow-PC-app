@@ -1,43 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
-import { useAuth } from "@/contexts/AuthContext";
+import { TableSkeleton } from "@/components/ui/Skeleton";
+import { useApi } from "@/hooks/useApi";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { api, formatDate, formatYen } from "@/lib/utils";
 import type { VendorPayment } from "@/lib/types";
 
 export default function VendorPaymentsPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [payments, setPayments] = useState<VendorPayment[]>([]);
+  const { user, authLoading } = useAuthGuard();
   const [unpaidOnly, setUnpaidOnly] = useState(true);
+  const { data, isLoading, mutate } = useApi<{ payments: VendorPayment[] }>(
+    user ? `/api/vendor-payments?unpaidOnly=${unpaidOnly}` : null
+  );
 
-  const load = useCallback(async () => {
-    const data = await api.get<{ payments: VendorPayment[] }>(
-      `/api/vendor-payments?unpaidOnly=${unpaidOnly}`
-    );
-    setPayments(data.payments);
-  }, [unpaidOnly]);
-
-  useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [user, loading, router]);
-
-  useEffect(() => {
-    if (user) void load();
-  }, [user, load]);
+  const payments = data?.payments ?? [];
 
   async function markPaid(id: string) {
     await api.patch("/api/vendor-payments", { id, status: "paid" });
-    await load();
+    await mutate();
   }
-
-  if (loading || !user) return null;
 
   const statusLabel = (s: VendorPayment["status"]) => {
     if (s === "paid") return "支払完了";
@@ -51,10 +38,18 @@ export default function VendorPaymentsPage() {
     return "default" as const;
   };
 
+  if (authLoading || !user) {
+    return (
+      <AppShell title="支払いリスト" breadcrumbs={["ToughFlow", "支払精算"]}>
+        <TableSkeleton rows={6} cols={7} />
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title="支払いリスト" breadcrumbs={["ToughFlow", "支払精算"]}>
       <div className="mb-4">
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-caption">
           <input
             type="checkbox"
             checked={unpaidOnly}
@@ -64,35 +59,41 @@ export default function VendorPaymentsPage() {
         </label>
       </div>
       <Card title="SC-080 事務向け支払いリスト">
-        <DataTable
-          columns={[
-            { key: "project", label: "案件" },
-            { key: "sales", label: "受注金額" },
-            { key: "payee", label: "支払先" },
-            { key: "amount", label: "支払金額" },
-            { key: "due", label: "期日" },
-            { key: "status", label: "状態" },
-            { key: "action", label: "操作" },
-          ]}
-          rows={payments.map((p) => ({
-            project: p.projectName,
-            sales: formatYen(p.salesAmount),
-            payee: p.payeeName,
-            amount: formatYen(p.amount),
-            due: p.dueDate ? formatDate(p.dueDate) : "—",
-            status: (
-              <Badge tone={statusTone(p.status)}>{statusLabel(p.status)}</Badge>
-            ),
-            action:
-              p.status === "confirmed" ? (
-                <Button size="sm" onClick={() => markPaid(p.id)}>
-                  支払完了
-                </Button>
-              ) : (
-                "—"
+        {isLoading && !data ? (
+          <TableSkeleton rows={6} cols={7} />
+        ) : (
+          <DataTable
+            columns={[
+              { key: "project", label: "案件" },
+              { key: "sales", label: "受注金額" },
+              { key: "payee", label: "支払先" },
+              { key: "amount", label: "支払金額" },
+              { key: "due", label: "期日" },
+              { key: "status", label: "状態" },
+              { key: "action", label: "操作" },
+            ]}
+            rows={payments.map((p) => ({
+              project: p.projectName,
+              sales: formatYen(p.salesAmount),
+              payee: p.payeeName,
+              amount: formatYen(p.amount),
+              due: p.dueDate ? formatDate(p.dueDate) : "—",
+              status: (
+                <Badge tone={statusTone(p.status)}>
+                  {statusLabel(p.status)}
+                </Badge>
               ),
-          }))}
-        />
+              action:
+                p.status === "confirmed" ? (
+                  <Button size="sm" onClick={() => markPaid(p.id)}>
+                    支払完了
+                  </Button>
+                ) : (
+                  "—"
+                ),
+            }))}
+          />
+        )}
       </Card>
     </AppShell>
   );

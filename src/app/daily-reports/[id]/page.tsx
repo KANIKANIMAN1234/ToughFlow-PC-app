@@ -1,32 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/Card";
-import { useAuth } from "@/contexts/AuthContext";
-import { api, formatDate, formatYen } from "@/lib/utils";
+import { DetailSkeleton } from "@/components/ui/Skeleton";
+import { useApi } from "@/hooks/useApi";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { formatDate, formatYen } from "@/lib/utils";
 import type { DailyReport } from "@/lib/types";
 
 export default function DailyReportDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [report, setReport] = useState<DailyReport | null>(null);
+  const { user, authLoading } = useAuthGuard();
+  const { data, isLoading } = useApi<{ report: DailyReport }>(
+    user && id ? `/api/daily-reports?id=${id}` : null
+  );
 
-  useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [user, loading, router]);
+  const report = data?.report;
 
-  useEffect(() => {
-    if (id) {
-      api
-        .get<{ report: DailyReport }>(`/api/daily-reports?id=${id}`)
-        .then((d) => setReport(d.report));
-    }
-  }, [id]);
+  if (authLoading || !user) {
+    return (
+      <AppShell title="作業日報詳細" breadcrumbs={["ToughFlow", "作業日報"]}>
+        <DetailSkeleton />
+      </AppShell>
+    );
+  }
 
-  if (loading || !user || !report) return null;
+  if (isLoading && !report) {
+    return (
+      <AppShell title="作業日報詳細" breadcrumbs={["ToughFlow", "作業日報"]}>
+        <DetailSkeleton />
+      </AppShell>
+    );
+  }
+
+  if (!report) return null;
 
   const c = report.content;
 
@@ -37,25 +45,27 @@ export default function DailyReportDetailPage() {
     >
       <div className="grid grid-cols-3 gap-6">
         <Card title="基本情報" className="col-span-2">
-          <dl className="grid grid-cols-2 gap-4 text-sm">
+          <dl className="grid grid-cols-2 gap-4 text-caption">
             <div>
-              <dt className="text-slate-500">請求先</dt>
-              <dd className="font-medium">{c.billingClient}</dd>
+              <dt className="text-apple-glyph">請求先</dt>
+              <dd className="font-normal text-apple-text">{c.billingClient}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">作業日</dt>
-              <dd className="font-medium">{formatDate(c.workDateStart)}</dd>
+              <dt className="text-apple-glyph">作業日</dt>
+              <dd className="font-normal text-apple-text">
+                {formatDate(c.workDateStart)}
+              </dd>
             </div>
             <div>
-              <dt className="text-slate-500">納入先</dt>
-              <dd className="font-medium">{c.delivery.company}</dd>
+              <dt className="text-apple-glyph">納入先</dt>
+              <dd className="font-normal text-apple-text">{c.delivery.company}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">担当</dt>
-              <dd className="font-medium">{c.reporterName}</dd>
+              <dt className="text-apple-glyph">担当</dt>
+              <dd className="font-normal text-apple-text">{c.reporterName}</dd>
             </div>
             <div className="col-span-2">
-              <dt className="text-slate-500">備考</dt>
+              <dt className="text-apple-glyph">備考</dt>
               <dd className="mt-1 whitespace-pre-wrap">{c.remarks}</dd>
             </div>
           </dl>
@@ -82,7 +92,7 @@ export default function DailyReportDetailPage() {
           </ul>
         </Card>
         <Card title="PDF プレビュー" className="col-span-3">
-          <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed bg-slate-50 text-sm text-slate-400">
+          <div className="flex h-64 items-center justify-center rounded-card border-2 border-dashed border-surface-border bg-apple-section text-caption text-apple-glyph">
             IMG_5182 レイアウト PDF プレビュー（本番実装）
           </div>
         </Card>

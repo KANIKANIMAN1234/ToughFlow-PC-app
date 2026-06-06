@@ -37,10 +37,10 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-6">
-      <div className="w-full max-w-md rounded-2xl border bg-white p-8 shadow-sm">
+      <div className="w-full max-w-md rounded-card border border-surface-border bg-white p-8">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-black text-brand-700">ToughFlow</h1>
-          <p className="mt-1 text-sm text-slate-500">事務・管理者向け PC 版</p>
+          <h1 className="apple-heading text-headline text-apple-text">ToughFlow</h1>
+          <p className="mt-1 text-caption text-apple-glyph">事務・管理者向け PC 版</p>
         </div>
         <div className="space-y-4">
           <Input
@@ -53,10 +53,10 @@ export default function LoginPage() {
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
           />
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">ロール</span>
+          <label className="block space-y-1.5">
+            <span className="text-caption font-normal text-apple-text">ロール</span>
             <select
-              className="w-full rounded-lg border px-3 py-2 text-sm"
+              className="focus-apple w-full rounded-xl border border-surface-border bg-white px-3 py-2.5 text-body text-apple-text outline-none"
               value={role}
               onChange={(e) => {
                 const next = e.target.value as UserRole;
@@ -72,11 +72,11 @@ export default function LoginPage() {
               ))}
             </select>
           </label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-caption text-red-600">{error}</p>}
           <Button fullWidth disabled={loading} onClick={handleLogin}>
             {loading ? "ログイン中…" : "ログイン"}
           </Button>
-          <p className="text-center text-xs text-slate-400">
+          <p className="text-center text-nav-link text-apple-glyph">
             m_user に登録されたユーザー名でログインします
           </p>
         </div>

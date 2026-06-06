@@ -3,11 +3,26 @@
 @tailwind utilities;
 
 body {
-  @apply bg-surface text-slate-900 antialiased;
-  font-family:
-    "Hiragino Sans",
-    "Hiragino Kaku Gothic ProN",
-    "Noto Sans JP",
-    system-ui,
-    sans-serif;
+  @apply bg-white font-sans text-body text-apple-text antialiased;
+  font-feature-settings: normal;
+}
+
+@layer components {
+  .glass-nav {
+    @apply border-b border-surface-border/80 bg-white/80 backdrop-blur-xl backdrop-saturate-150;
+  }
+
+  .apple-heading {
+    @apply font-display font-semibold tracking-normal text-apple-text;
+  }
+
+  .apple-link {
+    @apply text-apple-link transition-colors hover:underline;
+  }
+}
+
+@layer utilities {
+  .focus-apple {
+    @apply focus-visible:outline-none focus-visible:shadow-focus-ring;
+  }
 }
