@@ -114,15 +114,34 @@ export async function loginUser(
   };
 }
 
-export async function listProjects(tenantId: string): Promise<Project[]> {
+export async function listProjects(
+  tenantId: string,
+  options?: { userId?: string; role?: UserRole }
+): Promise<Project[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let assignedIds: string[] | null = null;
+
+  if (options?.role === "field" && options.userId) {
+    const { data: assignments, error: assignError } = await supabase
+      .from("t_project_assignment")
+      .select("project_id")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", options.userId);
+    if (assignError) throw new Error(assignError.message);
+    assignedIds = (assignments ?? []).map((r) => r.project_id as string);
+    if (assignedIds.length === 0) return [];
+  }
+
+  let query = supabase
     .from("m_project")
     .select("id, tenant_id, name, status, sales_amount, m_customer(name, address)")
     .eq("tenant_id", tenantId)
     .neq("status", "draft")
     .order("name");
 
+  if (assignedIds) query = query.in("id", assignedIds);
+
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data as DbProjectRow[]).map(mapProject);
 }

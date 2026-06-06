@@ -10,7 +10,10 @@ export async function GET(request: NextRequest) {
   if (!session) return unauthorizedResponse();
 
   try {
-    const projects = await listProjects(session.tenantId);
+    const projects = await listProjects(session.tenantId, {
+      userId: session.id,
+      role: session.role,
+    });
     return NextResponse.json({ projects });
   } catch (e) {
     const message = e instanceof Error ? e.message : "取得に失敗しました";
