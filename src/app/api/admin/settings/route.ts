@@ -9,6 +9,7 @@ import {
   updatePartnerShareSettings,
   updateRolePermissionMatrix,
   updateUserPermissionOverrides,
+  updateUserRole,
 } from "@/lib/db/repository";
 import {
   forbiddenResponse,
@@ -118,6 +119,15 @@ export async function PATCH(request: NextRequest) {
             | undefined,
         });
         return NextResponse.json({ partner });
+      }
+      case "user_role": {
+        const users = await updateUserRole(
+          session.tenantId,
+          body.userId as string,
+          body.role as UserRole,
+          session.id
+        );
+        return NextResponse.json({ users });
       }
       default:
         return NextResponse.json({ error: "invalid section" }, { status: 400 });

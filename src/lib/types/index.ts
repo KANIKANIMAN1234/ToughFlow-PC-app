@@ -211,6 +211,7 @@ export interface TenantUser {
   role: UserRole;
   email?: string;
   shareNotifyMethod?: ShareNotifyMethod;
+  lineUserId?: string;
 }
 
 export interface PartnerShareSettings {

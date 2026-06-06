@@ -941,7 +941,7 @@ export async function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("m_user")
-    .select("id, name, role, email, share_notify_method")
+    .select("id, name, role, email, share_notify_method, line_user_id")
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .order("name");
@@ -954,7 +954,51 @@ export async function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
     role: row.role as UserRole,
     email: (row.email as string | null) ?? undefined,
     shareNotifyMethod: row.share_notify_method as ShareNotifyMethod,
+    lineUserId: (row.line_user_id as string | null) ?? undefined,
   }));
+}
+
+export async function updateUserRole(
+  tenantId: string,
+  userId: string,
+  role: UserRole,
+  updatedBy?: string
+): Promise<TenantUser[]> {
+  const supabase = createAdminClient();
+
+  const { data: target, error: targetError } = await supabase
+    .from("m_user")
+    .select("id, role")
+    .eq("tenant_id", tenantId)
+    .eq("id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (targetError) throw new Error(targetError.message);
+  if (!target) throw new Error("ユーザーが見つかりません");
+
+  if (target.role === "admin" && role !== "admin") {
+    const { count, error: countError } = await supabase
+      .from("m_user")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("role", "admin")
+      .eq("is_active", true);
+    if (countError) throw new Error(countError.message);
+    if ((count ?? 0) <= 1) {
+      throw new Error("最後の管理者の役職は変更できません");
+    }
+  }
+
+  const { error } = await supabase
+    .from("m_user")
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+  void updatedBy;
+  return listTenantUsers(tenantId);
 }
 
 export async function getUserPermissionOverrides(
