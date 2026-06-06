@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  DEFAULT_PERMISSION_MATRIX,
+  FALLBACK_PERMISSIONS,
+  ROLES,
+} from "@/lib/permissions/defaults";
 import type {
+  AccessLevel,
   CompanyInfo,
   DailyReport,
   DailyReportContent,
@@ -7,8 +13,14 @@ import type {
   DispatchSource,
   DispatchStatus,
   Expense,
+  FolderSettings,
   MasterType,
+  PartnerDefaultMethod,
+  PartnerShareSettings,
+  PermissionDef,
   Project,
+  ShareNotifyMethod,
+  TenantUser,
   User,
   UserRole,
   VendorPayment,
@@ -690,4 +702,344 @@ export async function getDashboardSummary(
     dispatch: dispatchRes.count ?? 0,
     vendorPayments: paymentsRes.count ?? 0,
   };
+}
+
+const DEFAULT_SUBFOLDERS = [
+  "経費",
+  "日報",
+  "現地調査",
+  "報告書",
+  "見積",
+  "作業完了報告",
+  "請求",
+];
+
+export async function getFolderSettings(
+  tenantId: string
+): Promise<FolderSettings> {
+  const supabase = createAdminClient();
+  const [tenantRes, templateRes] = await Promise.all([
+    supabase
+      .from("m_tenant")
+      .select("drive_root_folder_id, mail_processed_folder_id")
+      .eq("id", tenantId)
+      .maybeSingle(),
+    supabase
+      .from("m_folder_template")
+      .select("subfolder_names, project_name_pattern")
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
+  ]);
+
+  if (tenantRes.error) throw new Error(tenantRes.error.message);
+  if (templateRes.error) throw new Error(templateRes.error.message);
+
+  const subfolders = templateRes.data?.subfolder_names;
+  return {
+    driveRootFolderId: tenantRes.data?.drive_root_folder_id ?? "",
+    mailProcessedFolderId: tenantRes.data?.mail_processed_folder_id ?? "",
+    projectNamePattern:
+      templateRes.data?.project_name_pattern ?? "{date}_{name}",
+    subfolderNames: Array.isArray(subfolders)
+      ? (subfolders as string[])
+      : DEFAULT_SUBFOLDERS,
+  };
+}
+
+export async function updateFolderSettings(
+  tenantId: string,
+  patch: Partial<FolderSettings>
+): Promise<FolderSettings> {
+  const current = await getFolderSettings(tenantId);
+  const next = { ...current, ...patch };
+  const supabase = createAdminClient();
+
+  const { error: tenantError } = await supabase
+    .from("m_tenant")
+    .update({
+      drive_root_folder_id: next.driveRootFolderId || null,
+      mail_processed_folder_id: next.mailProcessedFolderId || null,
+    })
+    .eq("id", tenantId);
+
+  if (tenantError) throw new Error(tenantError.message);
+
+  const { data: existing } = await supabase
+    .from("m_folder_template")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  const templatePayload = {
+    subfolder_names: next.subfolderNames,
+    project_name_pattern: next.projectNamePattern,
+  };
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("m_folder_template")
+      .update(templatePayload)
+      .eq("tenant_id", tenantId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("m_folder_template")
+      .insert({ tenant_id: tenantId, ...templatePayload });
+    if (error) throw new Error(error.message);
+  }
+
+  return next;
+}
+
+export async function listPermissionDefs(): Promise<PermissionDef[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_permission")
+    .select("id, code, name, sort_order")
+    .order("sort_order");
+
+  if (error || !data?.length) {
+    return FALLBACK_PERMISSIONS.map((p, i) => ({
+      ...p,
+      name: p.code,
+      sortOrder: i + 1,
+    }));
+  }
+
+  return data.map((row) => ({
+    id: row.id as string,
+    code: row.code as string,
+    name: row.name as string,
+    sortOrder: Number(row.sort_order),
+  }));
+}
+
+function resolveRoleLevel(
+  permissionCode: string,
+  role: UserRole,
+  overrides: Map<string, AccessLevel>
+): AccessLevel {
+  const key = `${permissionCode}:${role}`;
+  if (overrides.has(key)) return overrides.get(key)!;
+  return DEFAULT_PERMISSION_MATRIX[permissionCode]?.[role] ?? "deny";
+}
+
+export async function getRolePermissionMatrix(tenantId: string) {
+  const permissions = await listPermissionDefs();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_role_permission")
+    .select("permission_id, role, access_level, m_permission(code)")
+    .eq("tenant_id", tenantId);
+
+  if (error) throw new Error(error.message);
+
+  const overrides = new Map<string, AccessLevel>();
+  for (const row of data ?? []) {
+    const perm = Array.isArray(row.m_permission)
+      ? row.m_permission[0]
+      : row.m_permission;
+    const code = (perm as { code?: string } | null)?.code;
+    if (!code) continue;
+    overrides.set(
+      `${code}:${row.role as UserRole}`,
+      row.access_level as AccessLevel
+    );
+  }
+
+  const matrix: Record<string, Record<UserRole, AccessLevel>> = {};
+  for (const perm of permissions) {
+    matrix[perm.id] = {} as Record<UserRole, AccessLevel>;
+    for (const role of ROLES) {
+      matrix[perm.id][role] = resolveRoleLevel(perm.code, role, overrides);
+    }
+  }
+
+  return { permissions, matrix };
+}
+
+export async function updateRolePermissionMatrix(
+  tenantId: string,
+  updates: { permissionId: string; role: UserRole; accessLevel: AccessLevel }[],
+  updatedBy?: string
+) {
+  const supabase = createAdminClient();
+  const permissions = await listPermissionDefs();
+  const codeById = new Map(permissions.map((p) => [p.id, p.code]));
+
+  for (const item of updates) {
+    const code = codeById.get(item.permissionId) ?? item.permissionId;
+    let permissionId = item.permissionId;
+
+    if (!codeById.has(item.permissionId)) {
+      const { data: permRow } = await supabase
+        .from("m_permission")
+        .select("id")
+        .eq("code", code)
+        .maybeSingle();
+      if (!permRow?.id) continue;
+      permissionId = permRow.id as string;
+    }
+
+    const { error } = await supabase.from("m_role_permission").upsert(
+      {
+        tenant_id: tenantId,
+        role: item.role,
+        permission_id: permissionId,
+        access_level: item.accessLevel,
+        updated_by: updatedBy ?? null,
+      },
+      { onConflict: "tenant_id,role,permission_id" }
+    );
+    if (error) throw new Error(error.message);
+  }
+
+  return getRolePermissionMatrix(tenantId);
+}
+
+export async function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_user")
+    .select("id, name, role, email, share_notify_method")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    role: row.role as UserRole,
+    email: (row.email as string | null) ?? undefined,
+    shareNotifyMethod: row.share_notify_method as ShareNotifyMethod,
+  }));
+}
+
+export async function getUserPermissionOverrides(
+  tenantId: string,
+  userId: string
+) {
+  const permissions = await listPermissionDefs();
+  const { matrix: roleMatrix } = await getRolePermissionMatrix(tenantId);
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("m_user_permission")
+    .select("permission_id, access_level")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId);
+
+  if (error) throw new Error(error.message);
+
+  const overrides = new Map(
+    (data ?? []).map((row) => [
+      row.permission_id as string,
+      row.access_level as AccessLevel,
+    ])
+  );
+
+  const effective: Record<string, AccessLevel | null> = {};
+  for (const perm of permissions) {
+    effective[perm.id] = overrides.has(perm.id)
+      ? overrides.get(perm.id)!
+      : null;
+  }
+
+  return { permissions, roleMatrix, overrides: effective };
+}
+
+export async function updateUserPermissionOverrides(
+  tenantId: string,
+  userId: string,
+  updates: { permissionId: string; accessLevel: AccessLevel | null }[],
+  updatedBy?: string
+) {
+  const supabase = createAdminClient();
+
+  for (const item of updates) {
+    if (item.accessLevel === null) {
+      const { error } = await supabase
+        .from("m_user_permission")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .eq("user_id", userId)
+        .eq("permission_id", item.permissionId);
+      if (error) throw new Error(error.message);
+      continue;
+    }
+
+    const { error } = await supabase.from("m_user_permission").upsert(
+      {
+        tenant_id: tenantId,
+        user_id: userId,
+        permission_id: item.permissionId,
+        access_level: item.accessLevel,
+        updated_by: updatedBy ?? null,
+      },
+      { onConflict: "tenant_id,user_id,permission_id" }
+    );
+    if (error) throw new Error(error.message);
+  }
+
+  return getUserPermissionOverrides(tenantId, userId);
+}
+
+export async function getPartnerShareSettings(
+  tenantId: string
+): Promise<PartnerShareSettings> {
+  const supabase = createAdminClient();
+  const { data: tenant, error: tenantError } = await supabase
+    .from("m_tenant")
+    .select("partner_share_default_method")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (tenantError) throw new Error(tenantError.message);
+
+  const users = await listTenantUsers(tenantId);
+  return {
+    defaultMethod:
+      (tenant?.partner_share_default_method as PartnerDefaultMethod) ?? "email",
+    partners: users.filter((u) => u.role === "partner"),
+  };
+}
+
+export async function updatePartnerShareSettings(
+  tenantId: string,
+  patch: {
+    defaultMethod?: PartnerDefaultMethod;
+    partners?: {
+      userId: string;
+      shareNotifyMethod: ShareNotifyMethod;
+      email?: string;
+    }[];
+  }
+): Promise<PartnerShareSettings> {
+  const supabase = createAdminClient();
+
+  if (patch.defaultMethod) {
+    const { error } = await supabase
+      .from("m_tenant")
+      .update({ partner_share_default_method: patch.defaultMethod })
+      .eq("id", tenantId);
+    if (error) throw new Error(error.message);
+  }
+
+  if (patch.partners) {
+    for (const partner of patch.partners) {
+      const { error } = await supabase
+        .from("m_user")
+        .update({
+          share_notify_method: partner.shareNotifyMethod,
+          email: partner.email ?? null,
+        })
+        .eq("tenant_id", tenantId)
+        .eq("id", partner.userId);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  return getPartnerShareSettings(tenantId);
 }

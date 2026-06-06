@@ -176,3 +176,36 @@ export interface CompanyInfo {
   phone: string;
   bankInfo: string;
 }
+
+export type AccessLevel = "allow" | "conditional" | "deny";
+
+export type ShareNotifyMethod = "default" | "email" | "line" | "both";
+
+export type PartnerDefaultMethod = "email" | "line" | "both";
+
+export interface PermissionDef {
+  id: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+}
+
+export interface FolderSettings {
+  driveRootFolderId: string;
+  mailProcessedFolderId: string;
+  projectNamePattern: string;
+  subfolderNames: string[];
+}
+
+export interface TenantUser {
+  id: string;
+  name: string;
+  role: UserRole;
+  email?: string;
+  shareNotifyMethod?: ShareNotifyMethod;
+}
+
+export interface PartnerShareSettings {
+  defaultMethod: PartnerDefaultMethod;
+  partners: TenantUser[];
+}
