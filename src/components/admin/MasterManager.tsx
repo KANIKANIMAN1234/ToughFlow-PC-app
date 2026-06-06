@@ -198,14 +198,87 @@ export function MasterManager() {
                 }
                 className="col-span-2"
               />
-              <Input
-                label="振込先"
-                value={companyInfo.bankInfo}
-                onChange={(e) =>
-                  setCompanyInfo({ ...companyInfo, bankInfo: e.target.value })
-                }
-                className="col-span-2"
-              />
+              <div className="col-span-2 space-y-3 rounded-card border border-surface-border p-4">
+                <p className="text-sm font-medium text-apple-text">振込先</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="銀行名"
+                    value={companyInfo.bankAccount.bankName}
+                    onChange={(e) =>
+                      setCompanyInfo({
+                        ...companyInfo,
+                        bankAccount: {
+                          ...companyInfo.bankAccount,
+                          bankName: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="支店名"
+                    value={companyInfo.bankAccount.branchName}
+                    onChange={(e) =>
+                      setCompanyInfo({
+                        ...companyInfo,
+                        bankAccount: {
+                          ...companyInfo.bankAccount,
+                          branchName: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-medium text-apple-text">
+                      口座タイプ
+                    </span>
+                    <select
+                      className="w-full rounded-xl border border-surface-border px-3 py-3 text-caption"
+                      value={companyInfo.bankAccount.accountType}
+                      onChange={(e) =>
+                        setCompanyInfo({
+                          ...companyInfo,
+                          bankAccount: {
+                            ...companyInfo.bankAccount,
+                            accountType: e.target.value,
+                          },
+                        })
+                      }
+                    >
+                      <option value="普通">普通</option>
+                      <option value="当座">当座</option>
+                      <option value="貯蓄">貯蓄</option>
+                    </select>
+                  </label>
+                  <Input
+                    label="名前"
+                    value={companyInfo.bankAccount.accountHolder}
+                    onChange={(e) =>
+                      setCompanyInfo({
+                        ...companyInfo,
+                        bankAccount: {
+                          ...companyInfo.bankAccount,
+                          accountHolder: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="口座番号"
+                    value={companyInfo.bankAccount.accountNumber}
+                    onChange={(e) =>
+                      setCompanyInfo({
+                        ...companyInfo,
+                        bankAccount: {
+                          ...companyInfo.bankAccount,
+                          accountNumber: e.target.value,
+                        },
+                      })
+                    }
+                    className="col-span-2"
+                    inputMode="numeric"
+                  />
+                </div>
+              </div>
               <Button onClick={saveCompany}>保存</Button>
             </div>
           )}

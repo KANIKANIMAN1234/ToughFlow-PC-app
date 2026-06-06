@@ -170,11 +170,19 @@ export type MasterType =
   | "expense_categories"
   | "payees";
 
+export interface BankAccount {
+  bankName: string;
+  branchName: string;
+  accountType: string;
+  accountHolder: string;
+  accountNumber: string;
+}
+
 export interface CompanyInfo {
   name: string;
   address: string;
   phone: string;
-  bankInfo: string;
+  bankAccount: BankAccount;
 }
 
 export type AccessLevel = "allow" | "conditional" | "deny";

@@ -6,6 +6,7 @@ import {
 } from "@/lib/permissions/defaults";
 import type {
   AccessLevel,
+  BankAccount,
   CompanyInfo,
   DailyReport,
   DailyReportContent,
@@ -614,6 +615,41 @@ export async function resetMasterSeed(tenantId: string, type: MasterType) {
   return listMaster(tenantId, type, true);
 }
 
+const EMPTY_BANK_ACCOUNT: BankAccount = {
+  bankName: "",
+  branchName: "",
+  accountType: "普通",
+  accountHolder: "",
+  accountNumber: "",
+};
+
+function parseBankAccount(raw: unknown): BankAccount {
+  if (typeof raw === "string") {
+    if (!raw.trim()) return { ...EMPTY_BANK_ACCOUNT };
+    return { ...EMPTY_BANK_ACCOUNT, accountHolder: raw };
+  }
+  if (!raw || typeof raw !== "object") return { ...EMPTY_BANK_ACCOUNT };
+
+  const b = raw as Record<string, string>;
+  return {
+    bankName: b.bank_name ?? b.bankName ?? "",
+    branchName: b.branch_name ?? b.branchName ?? "",
+    accountType: b.account_type ?? b.accountType ?? "普通",
+    accountHolder: b.account_holder ?? b.accountHolder ?? b.name ?? "",
+    accountNumber: b.account_number ?? b.accountNumber ?? "",
+  };
+}
+
+function serializeBankAccount(account: BankAccount) {
+  return {
+    bank_name: account.bankName,
+    branch_name: account.branchName,
+    account_type: account.accountType,
+    account_holder: account.accountHolder,
+    account_number: account.accountNumber,
+  };
+}
+
 export async function getCompanyInfo(tenantId: string): Promise<CompanyInfo> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -623,12 +659,12 @@ export async function getCompanyInfo(tenantId: string): Promise<CompanyInfo> {
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  const info = (data?.company_info ?? {}) as Record<string, string>;
+  const info = (data?.company_info ?? {}) as Record<string, unknown>;
   return {
-    name: data?.name ?? info.name ?? "",
-    address: info.address ?? "",
-    phone: info.phone ?? "",
-    bankInfo: info.bank_account ?? info.bankInfo ?? "",
+    name: data?.name ?? (info.name as string) ?? "",
+    address: (info.address as string) ?? "",
+    phone: (info.phone as string) ?? "",
+    bankAccount: parseBankAccount(info.bank_account ?? info.bankAccount),
   };
 }
 
@@ -637,7 +673,11 @@ export async function updateCompanyInfo(
   patch: Partial<CompanyInfo>
 ): Promise<CompanyInfo> {
   const current = await getCompanyInfo(tenantId);
-  const next = { ...current, ...patch };
+  const next: CompanyInfo = {
+    ...current,
+    ...patch,
+    bankAccount: { ...current.bankAccount, ...patch.bankAccount },
+  };
   const supabase = createAdminClient();
 
   const { error } = await supabase
@@ -647,7 +687,7 @@ export async function updateCompanyInfo(
       company_info: {
         address: next.address,
         phone: next.phone,
-        bank_account: next.bankInfo,
+        bank_account: serializeBankAccount(next.bankAccount),
       },
     })
     .eq("id", tenantId);
