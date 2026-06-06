@@ -1001,6 +1001,52 @@ export async function updateUserRole(
   return listTenantUsers(tenantId);
 }
 
+/** ユーザーを論理削除（is_active = false） */
+export async function deactivateTenantUser(
+  tenantId: string,
+  userId: string,
+  actingUserId: string
+): Promise<TenantUser[]> {
+  if (userId === actingUserId) {
+    throw new Error("自分自身は削除できません");
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: target, error: targetError } = await supabase
+    .from("m_user")
+    .select("id, role")
+    .eq("tenant_id", tenantId)
+    .eq("id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (targetError) throw new Error(targetError.message);
+  if (!target) throw new Error("ユーザーが見つかりません");
+
+  if (target.role === "admin") {
+    const { count, error: countError } = await supabase
+      .from("m_user")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("role", "admin")
+      .eq("is_active", true);
+    if (countError) throw new Error(countError.message);
+    if ((count ?? 0) <= 1) {
+      throw new Error("最後の管理者は削除できません");
+    }
+  }
+
+  const { error } = await supabase
+    .from("m_user")
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+  return listTenantUsers(tenantId);
+}
+
 export async function getUserPermissionOverrides(
   tenantId: string,
   userId: string

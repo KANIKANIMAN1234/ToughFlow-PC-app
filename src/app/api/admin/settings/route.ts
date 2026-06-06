@@ -10,6 +10,7 @@ import {
   updateRolePermissionMatrix,
   updateUserPermissionOverrides,
   updateUserRole,
+  deactivateTenantUser,
 } from "@/lib/db/repository";
 import {
   forbiddenResponse,
@@ -125,6 +126,14 @@ export async function PATCH(request: NextRequest) {
           session.tenantId,
           body.userId as string,
           body.role as UserRole,
+          session.id
+        );
+        return NextResponse.json({ users });
+      }
+      case "user_deactivate": {
+        const users = await deactivateTenantUser(
+          session.tenantId,
+          body.userId as string,
           session.id
         );
         return NextResponse.json({ users });
