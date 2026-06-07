@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import useSWR from "swr";
-import { PUNCH_BUTTONS } from "@/lib/attendance/labels";
+import { getPunchButtonClassName, PUNCH_BUTTONS } from "@/lib/attendance/labels";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import type { AttendancePunchType, AttendanceStatus } from "@/lib/types";
@@ -61,10 +61,9 @@ export function AttendancePunchBar() {
             onClick={() => punch(type)}
             className={cn(
               "rounded-lg px-3 py-1.5 text-caption font-medium transition-colors focus-apple",
-              enabled
-                ? "bg-brand-600 text-white hover:bg-brand-700"
-                : "cursor-not-allowed bg-apple-section text-apple-glyph opacity-60",
-              submitting === type && "opacity-70"
+              getPunchButtonClassName(type, enabled),
+              !enabled && "cursor-not-allowed opacity-70",
+              submitting === type && "opacity-80"
             )}
           >
             {submitting === type ? "…" : label}
