@@ -256,45 +256,50 @@ export async function listProjects(
   return (data as DbProjectRow[]).map(mapProject);
 }
 
-type DbMapCustomerRow = {
-  id: string;
-  name: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  m_project:
-    | { id: string; name: string; status: string }
-    | { id: string; name: string; status: string }[]
-    | null;
-};
-
 export async function listMapMarkers(tenantId: string) {
-  const supabase = getDbClient();
-  const { data, error } = await supabase
+  const supabase = createAdminClient();
+
+  const { data: customers, error: customerError } = await supabase
     .from("m_customer")
-    .select("id, name, address, lat, lng, m_project(id, name, status)")
+    .select("id, name, address, lat, lng")
     .eq("tenant_id", tenantId)
     .order("name");
 
-  if (error) throw new Error(error.message);
+  if (customerError) throw new Error(customerError.message);
 
-  return (data as DbMapCustomerRow[])
-    .filter((row) => Boolean(row.address?.trim()))
-    .map((row) => {
-      const raw = row.m_project;
-      const projects = (Array.isArray(raw) ? raw : raw ? [raw] : [])
-        .filter((p) => p.status !== "draft")
-        .map((p) => ({ id: p.id, name: p.name, status: p.status }));
+  const { data: projects, error: projectError } = await supabase
+    .from("m_project")
+    .select("id, name, status, customer_id")
+    .eq("tenant_id", tenantId)
+    .neq("status", "draft");
 
-      return {
-        id: row.id,
-        customerName: row.name,
-        address: row.address!.trim(),
-        lat: row.lat != null ? Number(row.lat) : null,
-        lng: row.lng != null ? Number(row.lng) : null,
-        projects,
-      };
+  if (projectError) throw new Error(projectError.message);
+
+  const projectsByCustomer = new Map<
+    string,
+    { id: string; name: string; status: string }[]
+  >();
+  for (const project of projects ?? []) {
+    if (!project.customer_id) continue;
+    const list = projectsByCustomer.get(project.customer_id) ?? [];
+    list.push({
+      id: project.id,
+      name: project.name,
+      status: project.status,
     });
+    projectsByCustomer.set(project.customer_id, list);
+  }
+
+  return (customers ?? [])
+    .filter((row) => Boolean(row.address?.trim()))
+    .map((row) => ({
+      id: row.id,
+      customerName: row.name,
+      address: row.address!.trim(),
+      lat: row.lat != null ? Number(row.lat) : null,
+      lng: row.lng != null ? Number(row.lng) : null,
+      projects: projectsByCustomer.get(row.id) ?? [],
+    }));
 }
 
 export async function listExpenses(

@@ -123,9 +123,11 @@ export function CustomerSiteMap({ enabled }: Props) {
   }
 
   if (error) {
+    const detail = error instanceof Error ? error.message : "";
     return (
       <p className="text-caption text-red-600">
         地図データの取得に失敗しました。しばらくしてから再度お試しください。
+        {detail ? `（${detail}）` : ""}
       </p>
     );
   }
