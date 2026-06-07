@@ -23,6 +23,8 @@ import type {
   PermissionDef,
   Project,
   ShareNotifyMethod,
+  SiteSurvey,
+  SiteSurveyContent,
   TenantUser,
   User,
   UserRole,
@@ -382,6 +384,75 @@ export async function getDailyReport(
 ): Promise<DailyReport | null> {
   const reports = await listDailyReports(tenantId);
   return reports.find((r) => r.id === id) ?? null;
+}
+
+type ChecklistPayload = SiteSurveyContent & {
+  _meta?: { status?: SiteSurvey["status"]; publishedAt?: string };
+};
+
+function parseSiteSurveyRow(row: {
+  id: string;
+  project_id: string;
+  user_id: string;
+  checklist: ChecklistPayload;
+  created_at: string;
+  m_project: { name: string } | { name: string }[] | null;
+  m_user: { name: string } | { name: string }[] | null;
+}): SiteSurvey {
+  const project = unwrapJoin(row.m_project);
+  const user = unwrapJoin(row.m_user);
+  const { _meta, ...content } = row.checklist ?? {};
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    projectName: project?.name ?? "",
+    userId: row.user_id,
+    userName: user?.name ?? "",
+    status: _meta?.status ?? "draft",
+    content: content as SiteSurveyContent,
+    createdAt: row.created_at,
+    publishedAt: _meta?.publishedAt,
+  };
+}
+
+export async function listSiteSurveys(
+  tenantId: string,
+  userId?: string
+): Promise<SiteSurvey[]> {
+  const supabase = createAdminClient();
+  let query = supabase
+    .from("t_site_survey")
+    .select(
+      "id, project_id, user_id, checklist, created_at, m_project(name), m_user(name)"
+    )
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+
+  if (userId) query = query.eq("user_id", userId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => parseSiteSurveyRow(row as never));
+}
+
+export async function getSiteSurvey(
+  tenantId: string,
+  id: string
+): Promise<SiteSurvey | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("t_site_survey")
+    .select(
+      "id, project_id, user_id, checklist, created_at, m_project(name), m_user(name)"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return parseSiteSurveyRow(data as never);
 }
 
 function mapDispatchRow(row: {

@@ -112,6 +112,75 @@ export interface DailyReport {
   submittedAt?: string;
 }
 
+export interface SiteSurveyToolCheck {
+  toolId: string | null;
+  name: string;
+  load: boolean;
+  use: boolean;
+}
+
+export interface SiteSurveyPhotoEntry {
+  url: string;
+  caption: string;
+}
+
+export interface SiteSurveyContent {
+  customerName: string;
+  hasEstimate: boolean;
+  surveyDate: string;
+  siteAddress: string;
+  surveyorName: string;
+  contactPhone?: string;
+  customerContact?: string;
+  workDatetime: string;
+  workTypeId: string;
+  machineModel: string;
+  entrance: {
+    heightMm?: number;
+    widthMm?: number;
+    eaves?: string;
+    slope?: string;
+    step?: string;
+  };
+  plannedVehicles: string[];
+  unload: {
+    floor?: string;
+    blueSheetM?: number;
+    floorProtection?: string;
+  };
+  facility: {
+    overheadCrane?: string;
+    forklift?: string;
+    other?: string;
+  };
+  internalMove?: string;
+  requiredToolsNote?: string;
+  plannedWorkers?: number;
+  workSteps: string[];
+  precautions: string[];
+  tools: SiteSurveyToolCheck[];
+  photos: {
+    mapCarryIn?: string;
+    siteLayout?: string;
+    sitePhoto?: string;
+    sitePhotoEntries?: SiteSurveyPhotoEntry[];
+  };
+}
+
+export type SiteSurveyStatus = "draft" | "published";
+
+export interface SiteSurvey {
+  id: string;
+  projectId: string;
+  projectName: string;
+  userId: string;
+  userName: string;
+  status: SiteSurveyStatus;
+  content: SiteSurveyContent;
+  createdAt: string;
+  publishedAt?: string;
+}
+
 export interface Expense {
   id: string;
   projectId: string;
