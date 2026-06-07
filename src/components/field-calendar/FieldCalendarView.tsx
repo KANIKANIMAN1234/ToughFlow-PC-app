@@ -1,27 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import {
+  eventShortLabel,
+  formatEventTime,
+  groupEventsByDate,
+  groupEventsByPerson,
+  groupEventsBySite,
+} from "@/lib/field-calendar/google-events";
+import {
   buildMonthGrid,
   formatMonthTitle,
   getMonthRange,
   getTodayKey,
-  groupDispatchesByDate,
-  groupDispatchesByPerson,
-  groupDispatchesBySite,
-  siteShortLabel,
   WEEKDAY_LABELS,
   type CalendarViewMode,
-} from "@/lib/dispatch/calendar";
+} from "@/lib/field-calendar/grid";
+import type { GoogleCalendarEvent } from "@/lib/google/calendar";
 import { cn, formatDate } from "@/lib/utils";
-import type { DispatchRow } from "@/lib/types";
 
 const VIEW_TABS: { id: CalendarViewMode; label: string }[] = [
   { id: "calendar", label: "カレンダー" },
@@ -31,38 +32,24 @@ const VIEW_TABS: { id: CalendarViewMode; label: string }[] = [
 
 const MAX_EVENTS_PER_CELL = 3;
 
-function DispatchStatusBadge({ status }: { status: DispatchRow["status"] }) {
+function EventDetailRow({ event }: { event: GoogleCalendarEvent }) {
   return (
-    <Badge tone={status === "confirmed" ? "success" : "warning"}>
-      {status === "confirmed" ? "確定" : "下書き"}
-    </Badge>
-  );
-}
-
-function DispatchDetailRow({ row }: { row: DispatchRow }) {
-  const site =
-    row.customerName && row.siteName
-      ? `${row.customerName} / ${row.siteName}`
-      : row.siteName || row.customerName || "—";
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-surface-border bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="text-caption font-normal text-apple-text">{site}</p>
+    <div className="rounded-xl border border-surface-border bg-white px-3 py-2.5">
+      <p className="text-caption font-normal text-apple-text">{event.title}</p>
+      <p className="text-nav-link text-apple-glyph">
+        {formatEventTime(event)}
+        {event.location ? ` · ${event.location}` : ""}
+      </p>
+      {event.assignees.length > 0 && (
         <p className="text-nav-link text-apple-glyph">
-          {row.assignee || "担当未設定"} · {row.vehicles || "車両未設定"} ·{" "}
-          {row.workers}名
+          参加者: {event.assignees.join("、")}
         </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <DispatchStatusBadge status={row.status} />
-        <Link
-          href={`/dispatch/${row.id}`}
-          className="text-caption text-apple-link hover:underline focus-apple"
-        >
-          詳細
-        </Link>
-      </div>
+      )}
+      {event.description && (
+        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-nav-link text-apple-glyph">
+          {event.description}
+        </p>
+      )}
     </div>
   );
 }
@@ -79,17 +66,15 @@ export function FieldCalendarView({ enabled }: Props) {
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
 
   const range = useMemo(() => getMonthRange(year, month), [year, month]);
-  const { data, isLoading } = useApi<{ dispatches: DispatchRow[] }>(
-    enabled ? `/api/dispatches?from=${range.from}&to=${range.to}` : null
-  );
+  const { data, isLoading, error } = useApi<{
+    events: GoogleCalendarEvent[];
+    error?: string;
+  }>(enabled ? `/api/calendar/events?from=${range.from}&to=${range.to}` : null);
 
-  const dispatches = useMemo(() => data?.dispatches ?? [], [data?.dispatches]);
-  const byDate = useMemo(() => groupDispatchesByDate(dispatches), [dispatches]);
-  const byPerson = useMemo(
-    () => groupDispatchesByPerson(dispatches),
-    [dispatches]
-  );
-  const bySite = useMemo(() => groupDispatchesBySite(dispatches), [dispatches]);
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
+  const byDate = useMemo(() => groupEventsByDate(events), [events]);
+  const byPerson = useMemo(() => groupEventsByPerson(events), [events]);
+  const bySite = useMemo(() => groupEventsBySite(events), [events]);
   const monthGrid = useMemo(() => buildMonthGrid(year, month), [year, month]);
   const selectedRows = byDate.get(selectedDate) ?? [];
 
@@ -157,11 +142,18 @@ export function FieldCalendarView({ enabled }: Props) {
         </div>
       </div>
 
-      {isLoading && !data ? (
+      {error ? (
+        <Card title="Googleカレンダー">
+          <p className="text-caption text-red-600">
+            Googleカレンダーの取得に失敗しました。環境変数（GOOGLE_CALENDAR_ID、
+            GOOGLE_SERVICE_ACCOUNT_JSON）とカレンダー共有設定を確認してください。
+          </p>
+        </Card>
+      ) : isLoading && !data ? (
         <TableSkeleton rows={8} cols={7} />
       ) : viewMode === "calendar" ? (
         <>
-          <Card title={`配車予定（${dispatches.length}件）`}>
+          <Card title={`Googleカレンダー予定（${events.length}件）`}>
             <div className="overflow-x-auto">
               <div className="grid min-w-[640px] grid-cols-7 border-b border-surface-border">
                 {WEEKDAY_LABELS.map((label, i) => (
@@ -178,7 +170,7 @@ export function FieldCalendarView({ enabled }: Props) {
               </div>
               <div className="grid min-w-[640px] grid-cols-7">
                 {monthGrid.map((cell) => {
-                  const events = byDate.get(cell.dateKey) ?? [];
+                  const dayEvents = byDate.get(cell.dateKey) ?? [];
                   const isSelected = selectedDate === cell.dateKey;
                   return (
                     <button
@@ -203,23 +195,18 @@ export function FieldCalendarView({ enabled }: Props) {
                         {cell.day}
                       </span>
                       <div className="mt-1 space-y-0.5">
-                        {events.slice(0, MAX_EVENTS_PER_CELL).map((ev) => (
+                        {dayEvents.slice(0, MAX_EVENTS_PER_CELL).map((ev) => (
                           <div
                             key={ev.id}
-                            className={cn(
-                              "truncate rounded px-1 py-0.5 text-[10px] leading-tight",
-                              ev.status === "confirmed"
-                                ? "bg-emerald-50 text-emerald-900"
-                                : "bg-amber-50 text-amber-900"
-                            )}
-                            title={`${siteShortLabel(ev)} / ${ev.assignee}`}
+                            className="truncate rounded bg-sky-50 px-1 py-0.5 text-[10px] leading-tight text-sky-900"
+                            title={ev.title}
                           >
-                            {siteShortLabel(ev)}
+                            {eventShortLabel(ev)}
                           </div>
                         ))}
-                        {events.length > MAX_EVENTS_PER_CELL && (
+                        {dayEvents.length > MAX_EVENTS_PER_CELL && (
                           <p className="text-[10px] text-apple-glyph">
-                            +{events.length - MAX_EVENTS_PER_CELL}件
+                            +{dayEvents.length - MAX_EVENTS_PER_CELL}件
                           </p>
                         )}
                       </div>
@@ -232,11 +219,11 @@ export function FieldCalendarView({ enabled }: Props) {
 
           <Card title={`${formatDate(selectedDate)} の予定（${selectedRows.length}件）`}>
             {selectedRows.length === 0 ? (
-              <p className="text-caption text-apple-glyph">この日の配車予定はありません。</p>
+              <p className="text-caption text-apple-glyph">この日の予定はありません。</p>
             ) : (
               <div className="space-y-2">
                 {selectedRows.map((row) => (
-                  <DispatchDetailRow key={row.id} row={row} />
+                  <EventDetailRow key={row.id} event={row} />
                 ))}
               </div>
             )}
@@ -245,7 +232,7 @@ export function FieldCalendarView({ enabled }: Props) {
       ) : viewMode === "person" ? (
         <Card title={`人軸表示（${byPerson.length}名）`}>
           {byPerson.length === 0 ? (
-            <p className="text-caption text-apple-glyph">この月の配車予定はありません。</p>
+            <p className="text-caption text-apple-glyph">この月の予定はありません。</p>
           ) : (
             <div className="space-y-6">
               {byPerson.map((group) => (
@@ -257,29 +244,15 @@ export function FieldCalendarView({ enabled }: Props) {
                   <DataTable
                     columns={[
                       { key: "date", label: "日付" },
-                      { key: "site", label: "現場" },
-                      { key: "vehicles", label: "車両" },
-                      { key: "workers", label: "人数" },
-                      { key: "status", label: "状態" },
-                      { key: "link", label: "" },
+                      { key: "title", label: "予定" },
+                      { key: "time", label: "時間" },
+                      { key: "location", label: "場所" },
                     ]}
                     rows={group.rows.map((r) => ({
-                      date: formatDate(r.dispatchDate),
-                      site:
-                        r.customerName && r.siteName
-                          ? `${r.customerName} / ${r.siteName}`
-                          : r.siteName || r.customerName || "—",
-                      vehicles: r.vehicles || "—",
-                      workers: `${r.workers}名`,
-                      status: <DispatchStatusBadge status={r.status} />,
-                      link: (
-                        <Link
-                          href={`/dispatch/${r.id}`}
-                          className="text-brand-600 hover:underline"
-                        >
-                          詳細
-                        </Link>
-                      ),
+                      date: formatDate(r.dateKey),
+                      title: r.title,
+                      time: formatEventTime(r),
+                      location: r.location || "—",
                     }))}
                   />
                 </div>
@@ -290,7 +263,7 @@ export function FieldCalendarView({ enabled }: Props) {
       ) : (
         <Card title={`現場軸表示（${bySite.length}現場）`}>
           {bySite.length === 0 ? (
-            <p className="text-caption text-apple-glyph">この月の配車予定はありません。</p>
+            <p className="text-caption text-apple-glyph">この月の予定はありません。</p>
           ) : (
             <div className="space-y-6">
               {bySite.map((group) => (
@@ -302,26 +275,16 @@ export function FieldCalendarView({ enabled }: Props) {
                   <DataTable
                     columns={[
                       { key: "date", label: "日付" },
-                      { key: "assignee", label: "担当" },
-                      { key: "vehicles", label: "車両" },
-                      { key: "workers", label: "人数" },
-                      { key: "status", label: "状態" },
-                      { key: "link", label: "" },
+                      { key: "title", label: "予定" },
+                      { key: "time", label: "時間" },
+                      { key: "assignees", label: "参加者" },
                     ]}
                     rows={group.rows.map((r) => ({
-                      date: formatDate(r.dispatchDate),
-                      assignee: r.assignee || "—",
-                      vehicles: r.vehicles || "—",
-                      workers: `${r.workers}名`,
-                      status: <DispatchStatusBadge status={r.status} />,
-                      link: (
-                        <Link
-                          href={`/dispatch/${r.id}`}
-                          className="text-brand-600 hover:underline"
-                        >
-                          詳細
-                        </Link>
-                      ),
+                      date: formatDate(r.dateKey),
+                      title: r.title,
+                      time: formatEventTime(r),
+                      assignees:
+                        r.assignees.length > 0 ? r.assignees.join("、") : "—",
                     }))}
                   />
                 </div>
@@ -332,7 +295,7 @@ export function FieldCalendarView({ enabled }: Props) {
       )}
 
       <p className="text-nav-link text-apple-glyph">
-        配車データ（t_dispatch）と連動しています。Google Calendar 連携は今後追加予定です。
+        Googleカレンダーに登録された作業予定を表示しています。配車情報は「配車」メニューからご確認ください。
       </p>
     </div>
   );

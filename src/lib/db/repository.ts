@@ -256,6 +256,47 @@ export async function listProjects(
   return (data as DbProjectRow[]).map(mapProject);
 }
 
+type DbMapCustomerRow = {
+  id: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  m_project:
+    | { id: string; name: string; status: string }
+    | { id: string; name: string; status: string }[]
+    | null;
+};
+
+export async function listMapMarkers(tenantId: string) {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_customer")
+    .select("id, name, address, lat, lng, m_project(id, name, status)")
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return (data as DbMapCustomerRow[])
+    .filter((row) => Boolean(row.address?.trim()))
+    .map((row) => {
+      const raw = row.m_project;
+      const projects = (Array.isArray(raw) ? raw : raw ? [raw] : [])
+        .filter((p) => p.status !== "draft")
+        .map((p) => ({ id: p.id, name: p.name, status: p.status }));
+
+      return {
+        id: row.id,
+        customerName: row.name,
+        address: row.address!.trim(),
+        lat: row.lat != null ? Number(row.lat) : null,
+        lng: row.lng != null ? Number(row.lng) : null,
+        projects,
+      };
+    });
+}
+
 export async function listExpenses(
   tenantId: string,
   filter?: { status?: Expense["status"]; userId?: string }

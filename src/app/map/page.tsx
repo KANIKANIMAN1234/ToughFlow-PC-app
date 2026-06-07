@@ -1,28 +1,46 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { CustomerSiteMapRoot } from "@/components/map/CustomerSiteMap";
 import { Card } from "@/components/ui/Card";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function MapPage() {
   const { user, authLoading } = useAuthGuard();
+  const { canAccess, loading: permLoading } = usePermissions();
+  const router = useRouter();
 
-  if (authLoading || !user) {
+  const allowed = canAccess("project_list_other");
+
+  useEffect(() => {
+    if (authLoading || permLoading) return;
+    if (user && !allowed) router.replace("/home");
+  }, [user, authLoading, permLoading, allowed, router]);
+
+  if (authLoading || permLoading || !user) {
     return (
       <AppShell title="地図" breadcrumbs={["ToughFlow", "地図"]}>
-        <Card title="読み込み中">
-          <p className="text-caption text-apple-glyph">読み込み中…</p>
-        </Card>
+        <CardGridSkeleton />
+      </AppShell>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <AppShell title="地図" breadcrumbs={["ToughFlow", "地図"]}>
+        <CardGridSkeleton />
       </AppShell>
     );
   }
 
   return (
     <AppShell title="地図" breadcrumbs={["ToughFlow", "地図"]}>
-      <Card title="地図">
-        <p className="text-caption text-apple-glyph">
-          顧客・案件の現場位置を地図上に表示する画面です（Google Maps 連携は今後実装予定）。
-        </p>
+      <Card title="顧客・案件の現場位置">
+        <CustomerSiteMapRoot enabled={allowed} />
       </Card>
     </AppShell>
   );

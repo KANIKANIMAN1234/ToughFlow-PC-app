@@ -16,6 +16,7 @@
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.106.2",
+    "@vis.gl/react-google-maps": "^1.8.3",
     "clsx": "^2.1.1",
     "googleapis": "^173.0.0",
     "jose": "^6.2.3",
@@ -26,6 +27,7 @@
     "swr": "^2.4.1"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.65.1",
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
