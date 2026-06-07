@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/session";
 import { getUserAccessMap } from "@/lib/db/repository";
 import { listGoogleCalendarEvents } from "@/lib/google/calendar";
+import { getCalendarSetupHint } from "@/lib/google/client";
 import { isAccessGranted } from "@/lib/permissions/access";
 
 export async function GET(request: NextRequest) {
@@ -39,6 +40,10 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     const message = e instanceof Error ? e.message : "取得に失敗しました";
     const status = message.includes("未設定") ? 503 : 500;
-    return NextResponse.json({ error: message }, { status });
+    const hint = getCalendarSetupHint();
+    return NextResponse.json(
+      { error: message, hint },
+      { status }
+    );
   }
 }

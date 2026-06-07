@@ -33,8 +33,12 @@ export async function apiFetch<T>(
     },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `API error: ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      hint?: string;
+    };
+    const message = [body.error, body.hint].filter(Boolean).join(" — ");
+    throw new Error(message || `API error: ${res.status}`);
   }
   return res.json() as Promise<T>;
 }

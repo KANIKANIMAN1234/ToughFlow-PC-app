@@ -1,6 +1,12 @@
 import type { calendar_v3 } from "googleapis";
 
-import { getCalendarClient, getCalendarId, isCalendarConfigured } from "./client";
+import {
+  getCalendarClient,
+  getCalendarId,
+  getCalendarSetupHint,
+  getServiceAccountEmail,
+  isCalendarConfigured,
+} from "./client";
 
 function formatGoogleCalendarError(error: unknown): string {
   const apiMessage = (
@@ -49,9 +55,14 @@ function toJstTime(value: string): string {
 }
 
 function rangeToIsoBounds(from: string, to: string) {
+  const [y, m, d] = to.split("-").map(Number);
+  const dayAfter = new Date(y, m - 1, d + 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const exclusiveEnd = `${dayAfter.getFullYear()}-${pad(dayAfter.getMonth() + 1)}-${pad(dayAfter.getDate())}`;
+
   return {
     timeMin: new Date(`${from}T00:00:00+09:00`).toISOString(),
-    timeMax: new Date(`${to}T23:59:59+09:00`).toISOString(),
+    timeMax: new Date(`${exclusiveEnd}T00:00:00+09:00`).toISOString(),
   };
 }
 
@@ -87,13 +98,15 @@ export async function listGoogleCalendarEvents(
   to: string
 ): Promise<GoogleCalendarEvent[]> {
   if (!isCalendarConfigured()) {
-    throw new Error("Google Calendar が未設定です（GOOGLE_CALENDAR_ID）");
+    throw new Error(`Google Calendar が未設定です。${getCalendarSetupHint()}`);
   }
 
   const calendarId = getCalendarId();
   const calendar = await getCalendarClient();
   if (!calendar || !calendarId) {
-    throw new Error("Google Calendar クライアントの初期化に失敗しました");
+    throw new Error(
+      `Google Calendar クライアントの初期化に失敗しました。${getCalendarSetupHint()}`
+    );
   }
 
   const { timeMin, timeMax } = rangeToIsoBounds(from, to);
