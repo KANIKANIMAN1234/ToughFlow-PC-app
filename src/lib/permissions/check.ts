@@ -6,6 +6,7 @@ import {
   getSessionFromRequest,
   unauthorizedResponse,
 } from "@/lib/auth/session";
+import { isAccessGranted } from "@/lib/permissions/access";
 import { runWithDbContext } from "@/lib/supabase/context";
 
 export type PermissionCode = string;
@@ -15,10 +16,7 @@ export type AuthContext = {
   accessMap: Record<string, AccessLevel>;
 };
 
-/** allow / conditional はアクセス可（conditional のスコープ制限は repository 層で実施） */
-export function isAccessGranted(level: AccessLevel): boolean {
-  return level === "allow" || level === "conditional";
-}
+export { isAccessGranted };
 
 export async function resolveAccess(
   tenantId: string,

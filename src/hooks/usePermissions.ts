@@ -3,7 +3,7 @@
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AccessLevel } from "@/lib/types";
-import { isAccessGranted } from "@/lib/permissions/check";
+import { isAccessGranted } from "@/lib/permissions/access";
 
 type PermissionsResponse = {
   accessMap: Record<string, AccessLevel>;
