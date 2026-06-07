@@ -12,11 +12,7 @@ import {
   updateUserRole,
   deactivateTenantUser,
 } from "@/lib/db/repository";
-import {
-  forbiddenResponse,
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
+import { requirePermission } from "@/lib/permissions/check";
 import type {
   AccessLevel,
   FolderSettings,
@@ -26,9 +22,9 @@ import type {
 } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-  if (session.role !== "admin") return forbiddenResponse();
+  const auth = await requirePermission(request, "admin_settings");
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   const section = request.nextUrl.searchParams.get("section");
   const userId = request.nextUrl.searchParams.get("userId") ?? undefined;
@@ -68,9 +64,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-  if (session.role !== "admin") return forbiddenResponse();
+  const auth = await requirePermission(request, "admin_settings");
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   try {
     const body = await request.json();

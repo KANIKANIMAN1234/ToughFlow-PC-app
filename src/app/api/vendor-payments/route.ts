@@ -3,14 +3,11 @@ import {
   listVendorPayments,
   updateVendorPaymentStatus,
 } from "@/lib/db/repository";
-import {
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
+import { requireAnyPermission, requirePermission } from "@/lib/permissions/check";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+  const auth = await requirePermission(request, "vendor_payment_view");
+  if (auth instanceof Response) return auth;
 
   const unpaidOnly = request.nextUrl.searchParams.get("unpaidOnly") === "true";
   const status = request.nextUrl.searchParams.get("status") as
@@ -19,7 +16,7 @@ export async function GET(request: NextRequest) {
     | undefined;
 
   try {
-    const payments = await listVendorPayments(session.tenantId, {
+    const payments = await listVendorPayments(auth.session.tenantId, {
       unpaidOnly,
       status,
     });
@@ -31,17 +28,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+  const auth = await requireAnyPermission(request, [
+    "vendor_payment_paid",
+    "vendor_payment_confirm",
+  ]);
+  if (auth instanceof Response) return auth;
 
   try {
     const body = await request.json();
     const { id, status } = body as { id: string; status: "paid" };
     const payment = await updateVendorPaymentStatus(
-      session.tenantId,
+      auth.session.tenantId,
       id,
       status,
-      session.id
+      auth.session.id
     );
     if (!payment) {
       return NextResponse.json({ error: "not found" }, { status: 404 });

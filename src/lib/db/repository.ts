@@ -911,6 +911,102 @@ export async function updateFolderSettings(
   return next;
 }
 
+/** ユーザーの実効権限（個人上書き > ロール矩阵 > デフォルト） */
+export async function getUserAccessMap(
+  tenantId: string,
+  userId: string,
+  role: UserRole
+): Promise<Record<string, AccessLevel>> {
+  const permissions = await listPermissionDefs();
+  const supabase = createAdminClient();
+
+  const [{ data: userPerms }, { data: rolePerms }] = await Promise.all([
+    supabase
+      .from("m_user_permission")
+      .select("permission_id, access_level, m_permission(code)")
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId),
+    supabase
+      .from("m_role_permission")
+      .select("permission_id, access_level, m_permission(code)")
+      .eq("tenant_id", tenantId)
+      .eq("role", role),
+  ]);
+
+  const userOverrideByCode = new Map<string, AccessLevel>();
+  for (const row of userPerms ?? []) {
+    const perm = Array.isArray(row.m_permission)
+      ? row.m_permission[0]
+      : row.m_permission;
+    const code = (perm as { code?: string } | null)?.code;
+    if (code) userOverrideByCode.set(code, row.access_level as AccessLevel);
+  }
+
+  const roleOverrideByCode = new Map<string, AccessLevel>();
+  for (const row of rolePerms ?? []) {
+    const perm = Array.isArray(row.m_permission)
+      ? row.m_permission[0]
+      : row.m_permission;
+    const code = (perm as { code?: string } | null)?.code;
+    if (code) roleOverrideByCode.set(code, row.access_level as AccessLevel);
+  }
+
+  const access: Record<string, AccessLevel> = {};
+  for (const perm of permissions) {
+    if (userOverrideByCode.has(perm.code)) {
+      access[perm.code] = userOverrideByCode.get(perm.code)!;
+    } else if (roleOverrideByCode.has(perm.code)) {
+      access[perm.code] = roleOverrideByCode.get(perm.code)!;
+    } else {
+      access[perm.code] =
+        DEFAULT_PERMISSION_MATRIX[perm.code]?.[role] ?? "deny";
+    }
+  }
+
+  return access;
+}
+
+export async function getEffectivePermission(
+  tenantId: string,
+  userId: string,
+  role: UserRole,
+  permissionCode: string
+): Promise<AccessLevel> {
+  const map = await getUserAccessMap(tenantId, userId, role);
+  return map[permissionCode] ?? "deny";
+}
+
+export async function getOfficeReminders(tenantId: string) {
+  const supabase = createAdminClient();
+  const [expensesRes, reportsRes, paymentsRes] = await Promise.all([
+    supabase
+      .from("t_expense")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "submitted"),
+    supabase
+      .from("t_daily_report")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "draft"),
+    supabase
+      .from("t_vendor_payment")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("status", "confirmed"),
+  ]);
+
+  if (expensesRes.error) throw new Error(expensesRes.error.message);
+  if (reportsRes.error) throw new Error(reportsRes.error.message);
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+
+  return {
+    pendingExpenseApprovals: expensesRes.count ?? 0,
+    draftDailyReports: reportsRes.count ?? 0,
+    unpaidVendorPayments: paymentsRes.count ?? 0,
+  };
+}
+
 export async function listPermissionDefs(): Promise<PermissionDef[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase

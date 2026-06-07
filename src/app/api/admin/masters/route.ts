@@ -7,17 +7,16 @@ import {
   updateCompanyInfo,
   updateMasterItem,
 } from "@/lib/db/repository";
-import {
-  forbiddenResponse,
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
+import { requireAnyPermission, requirePermission } from "@/lib/permissions/check";
 import type { MasterType } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-  if (session.role !== "admin") return forbiddenResponse();
+  const auth = await requireAnyPermission(request, [
+    "master_manage",
+    "master_view",
+  ]);
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   const type = request.nextUrl.searchParams.get("type") as MasterType | null;
   const includeInactive =
@@ -37,9 +36,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-  if (session.role !== "admin") return forbiddenResponse();
+  const auth = await requirePermission(request, "master_manage");
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   try {
     const body = await request.json();
@@ -67,9 +66,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-  if (session.role !== "admin") return forbiddenResponse();
+  const auth = await requirePermission(request, "master_manage");
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   try {
     const body = await request.json();

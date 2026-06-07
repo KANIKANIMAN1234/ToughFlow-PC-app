@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listProjects } from "@/lib/db/repository";
-import {
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
+import { requireAnyPermission } from "@/lib/permissions/check";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+  const auth = await requireAnyPermission(request, [
+    "project_list_other",
+    "daily_report_register",
+    "site_survey_register",
+  ]);
+  if (auth instanceof Response) return auth;
 
   try {
-    const projects = await listProjects(session.tenantId, {
-      userId: session.id,
-      role: session.role,
+    const projects = await listProjects(auth.session.tenantId, {
+      userId: auth.session.id,
+      role: auth.session.role,
     });
     return NextResponse.json({ projects });
   } catch (e) {

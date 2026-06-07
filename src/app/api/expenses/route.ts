@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listExpenses, updateExpenseStatus } from "@/lib/db/repository";
-import {
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
+import { requirePermission } from "@/lib/permissions/check";
 
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+  const auth = await requirePermission(request, "expense_approve");
+  if (auth instanceof Response) return auth;
 
   const status = request.nextUrl.searchParams.get("status") as
     | "submitted"
@@ -15,7 +12,7 @@ export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("userId") ?? undefined;
 
   try {
-    const expenses = await listExpenses(session.tenantId, {
+    const expenses = await listExpenses(auth.session.tenantId, {
       status: status ?? undefined,
       userId,
     });
@@ -27,17 +24,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+  const auth = await requirePermission(request, "expense_approve");
+  if (auth instanceof Response) return auth;
 
   try {
     const body = await request.json();
     const { id, status } = body as { id: string; status: "approved" | "rejected" };
     const expense = await updateExpenseStatus(
-      session.tenantId,
+      auth.session.tenantId,
       id,
       status,
-      session.id
+      auth.session.id
     );
     if (!expense) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
