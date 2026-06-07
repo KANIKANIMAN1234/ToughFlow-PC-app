@@ -1,3 +1,9 @@
+import {
+  deriveAttendanceState,
+  getAllowedPunchTypes,
+  validatePunchTransition,
+  workDateJST,
+} from "@/lib/attendance/state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDbError } from "@/lib/db/errors";
 import { resolveTenantByCodeForLine } from "@/lib/line/tenant";
@@ -23,6 +29,9 @@ import type {
   PermissionDef,
   Project,
   ShareNotifyMethod,
+  AttendancePunch,
+  AttendancePunchType,
+  AttendanceStatus,
   SiteSurvey,
   SiteSurveyContent,
   TenantUser,
@@ -453,6 +462,85 @@ export async function getSiteSurvey(
   if (error) throw new Error(error.message);
   if (!data) return null;
   return parseSiteSurveyRow(data as never);
+}
+
+function mapAttendancePunch(row: {
+  id: string;
+  user_id: string;
+  punch_type: string;
+  punched_at: string;
+  work_date: string;
+  source: string;
+  note: string | null;
+}): AttendancePunch {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    punchType: row.punch_type as AttendancePunchType,
+    punchedAt: row.punched_at,
+    workDate: row.work_date,
+    source: row.source as AttendancePunch["source"],
+    note: row.note ?? undefined,
+  };
+}
+
+export async function listAttendancePunches(
+  tenantId: string,
+  userId: string,
+  workDate?: string
+): Promise<AttendancePunch[]> {
+  const supabase = createAdminClient();
+  const date = workDate ?? workDateJST();
+  const { data, error } = await supabase
+    .from("t_attendance_punch")
+    .select("id, user_id, punch_type, punched_at, work_date, source, note")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .eq("work_date", date)
+    .order("punched_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapAttendancePunch(row as never));
+}
+
+export async function getAttendanceStatus(
+  tenantId: string,
+  userId: string,
+  workDate?: string
+): Promise<AttendanceStatus> {
+  const date = workDate ?? workDateJST();
+  const punches = await listAttendancePunches(tenantId, userId, date);
+  const state = deriveAttendanceState(punches);
+  return {
+    state,
+    workDate: date,
+    punches,
+    allowedTypes: getAllowedPunchTypes(state),
+  };
+}
+
+export async function createAttendancePunch(
+  tenantId: string,
+  userId: string,
+  punchType: AttendancePunchType,
+  source: AttendancePunch["source"]
+): Promise<AttendanceStatus> {
+  const workDate = workDateJST();
+  const existing = await listAttendancePunches(tenantId, userId, workDate);
+  const validationError = validatePunchTransition(existing, punchType);
+  if (validationError) throw new Error(validationError);
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("t_attendance_punch").insert({
+    tenant_id: tenantId,
+    user_id: userId,
+    punch_type: punchType,
+    work_date: workDate,
+    source,
+  });
+
+  if (error) throw new Error(error.message);
+  return getAttendanceStatus(tenantId, userId, workDate);
 }
 
 function mapDispatchRow(row: {

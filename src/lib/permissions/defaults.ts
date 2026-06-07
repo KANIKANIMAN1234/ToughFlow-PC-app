@@ -148,6 +148,20 @@ export const DEFAULT_PERMISSION_MATRIX: Record<
     field: "deny",
     partner: "deny",
   },
+  attendance_register: {
+    admin: "allow",
+    office: "allow",
+    manager: "allow",
+    field: "allow",
+    partner: "deny",
+  },
+  attendance_view_all: {
+    admin: "allow",
+    office: "allow",
+    manager: "conditional",
+    field: "deny",
+    partner: "deny",
+  },
 };
 
 export const FALLBACK_PERMISSIONS = Object.entries(DEFAULT_PERMISSION_MATRIX).map(

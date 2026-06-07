@@ -26,6 +26,7 @@ import {
 
 } from "@/lib/permissions/nav";
 
+import { AttendancePunchBar } from "@/components/attendance/AttendancePunchBar";
 import { useEffect, useMemo, useState } from "react";
 
 
@@ -528,9 +529,9 @@ export function AppShell({
 
       >
 
-        <header className="glass-nav sticky top-0 z-10 flex h-14 items-center justify-between px-6">
+        <header className="glass-nav sticky top-0 z-10 flex h-14 items-center justify-between gap-4 px-6">
 
-          <div>
+          <div className="min-w-0">
 
             {breadcrumbs && breadcrumbs.length > 0 && (
 
@@ -546,19 +547,25 @@ export function AppShell({
 
           </div>
 
-          <button
+          <div className="flex shrink-0 items-center gap-4">
 
-            type="button"
+            <AttendancePunchBar />
 
-            onClick={() => logout()}
+            <button
 
-            className="text-caption text-apple-link hover:underline focus-apple"
+              type="button"
 
-          >
+              onClick={() => logout()}
 
-            ログアウト
+              className="text-caption text-apple-link hover:underline focus-apple"
 
-          </button>
+            >
+
+              ログアウト
+
+            </button>
+
+          </div>
 
         </header>
 
