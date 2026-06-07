@@ -92,9 +92,28 @@ export default function DailyReportDetailPage() {
           </ul>
         </Card>
         <Card title="PDF プレビュー" className="col-span-3">
-          <div className="flex h-64 items-center justify-center rounded-card border-2 border-dashed border-surface-border bg-apple-section text-caption text-apple-glyph">
-            IMG_5182 レイアウト PDF プレビュー（本番実装）
+          <div className="mb-3 flex gap-3">
+            <a
+              href={`/api/daily-reports/${id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center rounded-lg bg-apple-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              PDF を開く
+            </a>
+            <a
+              href={`/api/daily-reports/${id}/pdf`}
+              download
+              className="inline-flex items-center rounded-lg border border-surface-border px-4 py-2 text-sm font-medium text-apple-text hover:bg-apple-section"
+            >
+              PDF をダウンロード
+            </a>
           </div>
+          <iframe
+            title="作業日報プレビュー"
+            src={`/api/daily-reports/${id}/preview`}
+            className="h-[720px] w-full rounded-card border border-surface-border bg-white"
+          />
         </Card>
       </div>
     </AppShell>
