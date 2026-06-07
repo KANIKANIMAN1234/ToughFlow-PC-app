@@ -161,7 +161,8 @@ function toSessionUser(
 export async function loginUserByLineId(
   tenantCode: string,
   lineUserId: string,
-  lineDisplayName?: string
+  lineDisplayName?: string,
+  options?: { defaultRole?: User["role"] }
 ): Promise<User> {
   const supabase = createAdminClient();
   const tenant = await resolveTenantByCodeForLine(tenantCode);
@@ -192,13 +193,14 @@ export async function loginUserByLineId(
   }
 
   const name = lineDisplayName?.trim() || "ユーザー";
+  const defaultRole = options?.defaultRole ?? "field";
   const { data: created, error: createError } = await supabase
     .from("m_user")
     .insert({
       tenant_id: tenant.id,
       line_user_id: lineUserId,
       name,
-      role: "field",
+      role: defaultRole,
       is_active: true,
     })
     .select("id, name, role, tenant_id, is_active")
@@ -1187,7 +1189,7 @@ export async function getUserAccessMap(
   role: UserRole
 ): Promise<Record<string, AccessLevel>> {
   const permissions = await listPermissionDefs();
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
 
   const [{ data: userPerms }, { data: rolePerms }] = await Promise.all([
     supabase
@@ -1277,7 +1279,7 @@ export async function getOfficeReminders(tenantId: string) {
 }
 
 export async function listPermissionDefs(): Promise<PermissionDef[]> {
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("m_permission")
     .select("id, code, name, sort_order")

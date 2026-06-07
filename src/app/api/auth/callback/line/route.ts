@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
     const user = await loginUserByLineId(
       oauth.tenantCode,
       profile.sub,
-      displayName
+      displayName,
+      { defaultRole: "office" }
     );
 
     const response = NextResponse.redirect(new URL(returnTo, request.url));

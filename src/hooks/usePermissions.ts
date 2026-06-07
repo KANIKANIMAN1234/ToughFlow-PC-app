@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { useApi } from "@/hooks/useApi";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AccessLevel } from "@/lib/types";
 import { isAccessGranted } from "@/lib/permissions/access";
+import { buildDefaultAccessMap } from "@/lib/permissions/defaults";
 
 type PermissionsResponse = {
   accessMap: Record<string, AccessLevel>;
@@ -12,19 +14,35 @@ type PermissionsResponse = {
 
 export function usePermissions() {
   const { user } = useAuth();
-  const { data, isLoading } = useApi<PermissionsResponse>(
+  const { data, isLoading, error } = useApi<PermissionsResponse>(
     user ? "/api/auth/permissions" : null
   );
 
+  const accessMap = useMemo(() => {
+    if (data?.accessMap && Object.keys(data.accessMap).length > 0) {
+      return data.accessMap;
+    }
+    if (user?.role) return buildDefaultAccessMap(user.role);
+    return {};
+  }, [data?.accessMap, user?.role]);
+
+  const granted = useMemo(
+    () =>
+      data?.granted ??
+      Object.entries(accessMap)
+        .filter(([, level]) => isAccessGranted(level))
+        .map(([code]) => code),
+    [data?.granted, accessMap]
+  );
+
   function canAccess(permissionCode: string): boolean {
-    if (!data?.accessMap) return false;
-    return isAccessGranted(data.accessMap[permissionCode] ?? "deny");
+    return isAccessGranted(accessMap[permissionCode] ?? "deny");
   }
 
   return {
-    accessMap: data?.accessMap ?? {},
-    granted: data?.granted ?? [],
+    accessMap,
+    granted,
     canAccess,
-    loading: isLoading,
+    loading: isLoading && !error && !!user && !data,
   };
 }

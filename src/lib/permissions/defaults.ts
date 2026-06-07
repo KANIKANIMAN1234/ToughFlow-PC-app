@@ -172,3 +172,14 @@ export const FALLBACK_PERMISSIONS = Object.entries(DEFAULT_PERMISSION_MATRIX).ma
     sortOrder: i + 1,
   })
 );
+
+/** API 未取得時のフォールバック（ロール別デフォルト矩阵） */
+export function buildDefaultAccessMap(
+  role: UserRole
+): Record<string, AccessLevel> {
+  const access: Record<string, AccessLevel> = {};
+  for (const [code, levels] of Object.entries(DEFAULT_PERMISSION_MATRIX)) {
+    access[code] = levels[role] ?? "deny";
+  }
+  return access;
+}
