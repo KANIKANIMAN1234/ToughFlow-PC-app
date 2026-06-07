@@ -1070,6 +1070,81 @@ export async function updateFolderSettings(
   return next;
 }
 
+export type ProjectDriveInfo = {
+  projectId: string;
+  projectName: string;
+  projectDriveFolderId: string | null;
+  workStartDate: string | null;
+  customerId: string | null;
+  customerName: string;
+  customerDriveFolderId: string | null;
+};
+
+export async function getProjectDriveInfo(
+  tenantId: string,
+  projectId: string
+): Promise<ProjectDriveInfo | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_project")
+    .select(
+      "id, name, drive_folder_id, work_start_date, customer_id, m_customer(id, name, drive_folder_id)"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const customer = unwrapJoin(
+    data.m_customer as
+      | { id: string; name: string; drive_folder_id: string | null }
+      | { id: string; name: string; drive_folder_id: string | null }[]
+      | null
+  );
+
+  return {
+    projectId: data.id,
+    projectName: data.name,
+    projectDriveFolderId: data.drive_folder_id,
+    workStartDate: data.work_start_date,
+    customerId: data.customer_id,
+    customerName: customer?.name ?? "未分類",
+    customerDriveFolderId: customer?.drive_folder_id ?? null,
+  };
+}
+
+export async function updateCustomerDriveFolderId(
+  tenantId: string,
+  customerId: string,
+  driveFolderId: string
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("m_customer")
+    .update({ drive_folder_id: driveFolderId })
+    .eq("tenant_id", tenantId)
+    .eq("id", customerId);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function updateProjectDriveFolderId(
+  tenantId: string,
+  projectId: string,
+  driveFolderId: string
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("m_project")
+    .update({ drive_folder_id: driveFolderId })
+    .eq("tenant_id", tenantId)
+    .eq("id", projectId);
+
+  if (error) throw new Error(error.message);
+}
+
 /** ユーザーの実効権限（個人上書き > ロール矩阵 > デフォルト） */
 export async function getUserAccessMap(
   tenantId: string,

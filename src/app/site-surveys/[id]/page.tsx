@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { DetailSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { resolvePhotoDisplayUrl } from "@/lib/drive/photo-url";
 import { formatDate } from "@/lib/utils";
 import type { SiteSurvey, SiteSurveyPhotoEntry } from "@/lib/types";
 
@@ -39,7 +40,7 @@ function PhotoGrid({ entries }: { entries: SiteSurveyPhotoEntry[] }) {
         <div key={i} className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={entry.url}
+            src={resolvePhotoDisplayUrl(entry.url)}
             alt={entry.caption || `写真 ${i + 1}`}
             className="max-h-48 w-full rounded-card border border-surface-border object-contain"
           />
