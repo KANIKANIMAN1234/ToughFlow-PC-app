@@ -28,6 +28,11 @@ export interface DailyReportMaterial extends MasterBase {
 }
 export interface SiteSurveyWorkType extends MasterBase {}
 export interface SiteSurveyTool extends MasterBase {}
+
+export interface SiteSurveyMasters {
+  workTypes: SiteSurveyWorkType[];
+  tools: SiteSurveyTool[];
+}
 export interface ExpenseCategory extends MasterBase {}
 export interface Payee extends MasterBase {
   contact?: string;

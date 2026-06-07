@@ -34,6 +34,9 @@ import type {
   AttendanceStatus,
   SiteSurvey,
   SiteSurveyContent,
+  SiteSurveyMasters,
+  SiteSurveyTool,
+  SiteSurveyWorkType,
   TenantUser,
   User,
   UserRole,
@@ -393,6 +396,37 @@ export async function getDailyReport(
 ): Promise<DailyReport | null> {
   const reports = await listDailyReports(tenantId);
   return reports.find((r) => r.id === id) ?? null;
+}
+
+export async function getSiteSurveyMasters(
+  tenantId: string
+): Promise<SiteSurveyMasters> {
+  const supabase = createAdminClient();
+
+  const [workTypes, tools] = await Promise.all([
+    supabase
+      .from("m_site_survey_work_type")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase
+      .from("m_site_survey_tool")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .order("sort_order"),
+  ]);
+
+  if (workTypes.error) throw new Error(workTypes.error.message);
+  if (tools.error) throw new Error(tools.error.message);
+
+  return {
+    workTypes: (workTypes.data ?? []).map(
+      (r) => mapMasterBase(r) as SiteSurveyWorkType
+    ),
+    tools: (tools.data ?? []).map((r) => mapMasterBase(r) as SiteSurveyTool),
+  };
 }
 
 type ChecklistPayload = SiteSurveyContent & {

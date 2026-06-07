@@ -92,6 +92,19 @@ export default function SiteSurveyDetailPage() {
         c.customerName,
       ]}
     >
+      {survey.status === "published" && (
+        <div className="mb-4 flex gap-3">
+          <a
+            href={`/api/site-surveys/${survey.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-brand-600 underline"
+          >
+            報告書 PDF を表示
+          </a>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-6">
         <Card title="基本情報" className="col-span-2">
           <dl className="grid grid-cols-2 gap-4 text-caption">
