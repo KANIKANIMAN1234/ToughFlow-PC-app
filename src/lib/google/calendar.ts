@@ -2,6 +2,25 @@ import type { calendar_v3 } from "googleapis";
 
 import { getCalendarClient, getCalendarId, isCalendarConfigured } from "./client";
 
+function formatGoogleCalendarError(error: unknown): string {
+  const apiMessage = (
+    error as { response?: { data?: { error?: { message?: string } } } }
+  ).response?.data?.error?.message;
+
+  if (apiMessage) {
+    if (apiMessage.includes("Not Found")) {
+      return "Googleカレンダーが見つかりません。GOOGLE_CALENDAR_ID とカレンダー共有設定を確認してください。";
+    }
+    if (apiMessage.includes("Forbidden") || apiMessage.includes("permission")) {
+      return "Googleカレンダーへのアクセスが拒否されました。サービスアカウントへの共有（変更権限）を確認してください。";
+    }
+    return `Google Calendar API: ${apiMessage}`;
+  }
+
+  if (error instanceof Error) return error.message;
+  return "取得に失敗しました";
+}
+
 export type GoogleCalendarEvent = {
   id: string;
   title: string;
@@ -81,24 +100,28 @@ export async function listGoogleCalendarEvents(
   const events: GoogleCalendarEvent[] = [];
   let pageToken: string | undefined;
 
-  do {
-    const res = await calendar.events.list({
-      calendarId,
-      timeMin,
-      timeMax,
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 2500,
-      pageToken,
-    });
+  try {
+    do {
+      const res = await calendar.events.list({
+        calendarId,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 2500,
+        pageToken,
+      });
 
-    for (const item of res.data.items ?? []) {
-      const mapped = mapGoogleEvent(item);
-      if (mapped) events.push(mapped);
-    }
+      for (const item of res.data.items ?? []) {
+        const mapped = mapGoogleEvent(item);
+        if (mapped) events.push(mapped);
+      }
 
-    pageToken = res.data.nextPageToken ?? undefined;
-  } while (pageToken);
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
+  } catch (error) {
+    throw new Error(formatGoogleCalendarError(error));
+  }
 
   return events;
 }

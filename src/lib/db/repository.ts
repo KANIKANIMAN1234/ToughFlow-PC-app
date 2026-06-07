@@ -572,7 +572,7 @@ export async function listAttendancePunches(
   userId: string,
   workDate?: string
 ): Promise<AttendancePunch[]> {
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   const date = workDate ?? workDateJST();
   const { data, error } = await supabase
     .from("t_attendance_punch")
@@ -613,7 +613,7 @@ export async function createAttendancePunch(
   const validationError = validatePunchTransition(existing, punchType);
   if (validationError) throw new Error(validationError);
 
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   const { error } = await supabase.from("t_attendance_punch").insert({
     tenant_id: tenantId,
     user_id: userId,

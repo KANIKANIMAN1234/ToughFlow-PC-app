@@ -145,8 +145,10 @@ export function FieldCalendarView({ enabled }: Props) {
       {error ? (
         <Card title="Googleカレンダー">
           <p className="text-caption text-red-600">
-            Googleカレンダーの取得に失敗しました。環境変数（GOOGLE_CALENDAR_ID、
-            GOOGLE_SERVICE_ACCOUNT_JSON）とカレンダー共有設定を確認してください。
+            Googleカレンダーの取得に失敗しました。
+            {error instanceof Error && error.message
+              ? `（${error.message}）`
+              : " 環境変数（GOOGLE_CALENDAR_ID、GOOGLE_SERVICE_ACCOUNT_JSON）とカレンダー共有設定を確認してください。"}
           </p>
         </Card>
       ) : isLoading && !data ? (
