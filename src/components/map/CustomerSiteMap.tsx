@@ -2,17 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AdvancedMarker,
   APIProvider,
   InfoWindow,
   Map,
-  Marker,
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
+import { CustomerMapPin } from "@/components/map/CustomerMapPin";
 import { Card } from "@/components/ui/Card";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import type { MapMarker, ResolvedMapMarker } from "@/lib/map/types";
+
+const MAP_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID?.trim() || "DEMO_MAP_ID";
 
 const DEFAULT_CENTER = { lat: 36.1323, lng: 139.6014 };
 const DEFAULT_ZOOM = 10;
@@ -144,6 +148,7 @@ export function CustomerSiteMap({ enabled }: Props) {
     <div className="space-y-4">
       <div className="overflow-hidden rounded-xl ring-1 ring-surface-border">
         <Map
+          mapId={MAP_ID}
           defaultCenter={DEFAULT_CENTER}
           defaultZoom={DEFAULT_ZOOM}
           gestureHandling="greedy"
@@ -152,12 +157,13 @@ export function CustomerSiteMap({ enabled }: Props) {
         >
           <MapBoundsFitter markers={resolved} />
           {resolved.map((marker) => (
-            <Marker
+            <AdvancedMarker
               key={marker.id}
               position={{ lat: marker.lat, lng: marker.lng }}
-              title={marker.customerName}
               onClick={() => setSelectedId(marker.id)}
-            />
+            >
+              <CustomerMapPin name={marker.customerName} />
+            </AdvancedMarker>
           ))}
           {selected && (
             <InfoWindow
