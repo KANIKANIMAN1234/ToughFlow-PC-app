@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatDbError } from "@/lib/db/errors";
+import { resolveTenantByCodeForLine } from "@/lib/line/tenant";
 import {
   DEFAULT_PERMISSION_MATRIX,
   FALLBACK_PERMISSIONS,
@@ -125,6 +127,84 @@ export async function loginUser(
     tenantId: tenant.id,
     tenantName: tenant.name,
   };
+}
+
+function toSessionUser(
+  dbUser: { id: string; name: string; role: string },
+  tenant: { id: string; name: string }
+): User {
+  return {
+    id: dbUser.id,
+    name: dbUser.name,
+    role: dbUser.role as UserRole,
+    tenantId: tenant.id,
+    tenantName: tenant.name,
+  };
+}
+
+/** LINE Login: line_user_id で特定。未登録なら m_user を自動作成（役職は管理者が後から設定） */
+export async function loginUserByLineId(
+  tenantCode: string,
+  lineUserId: string,
+  lineDisplayName?: string
+): Promise<User> {
+  const supabase = createAdminClient();
+  const tenant = await resolveTenantByCodeForLine(tenantCode);
+
+  const { data: existing, error: existingError } = await supabase
+    .from("m_user")
+    .select("id, name, role, tenant_id, is_active, line_user_id")
+    .eq("tenant_id", tenant.id)
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+
+  if (existingError) throw new Error(formatDbError(existingError.message));
+
+  if (existing?.is_active) {
+    return toSessionUser(existing, tenant);
+  }
+
+  if (existing && !existing.is_active) {
+    const name = lineDisplayName?.trim() || existing.name;
+    const { data: reactivated, error: reactivateError } = await supabase
+      .from("m_user")
+      .update({ is_active: true, name })
+      .eq("id", existing.id)
+      .select("id, name, role, tenant_id, is_active")
+      .single();
+    if (reactivateError) throw new Error(formatDbError(reactivateError.message));
+    return toSessionUser(reactivated, tenant);
+  }
+
+  const name = lineDisplayName?.trim() || "ユーザー";
+  const { data: created, error: createError } = await supabase
+    .from("m_user")
+    .insert({
+      tenant_id: tenant.id,
+      line_user_id: lineUserId,
+      name,
+      role: "field",
+      is_active: true,
+    })
+    .select("id, name, role, tenant_id, is_active")
+    .single();
+
+  if (createError) {
+    if (createError.message.includes("duplicate") || createError.code === "23505") {
+      const { data: retry, error: retryError } = await supabase
+        .from("m_user")
+        .select("id, name, role, tenant_id, is_active")
+        .eq("tenant_id", tenant.id)
+        .eq("line_user_id", lineUserId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (retryError) throw new Error(formatDbError(retryError.message));
+      if (retry) return toSessionUser(retry, tenant);
+    }
+    throw new Error(formatDbError(createError.message));
+  }
+
+  return toSessionUser(created, tenant);
 }
 
 export async function listProjects(
