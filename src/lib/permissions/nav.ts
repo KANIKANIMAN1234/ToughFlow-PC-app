@@ -4,10 +4,12 @@ import {
   ClipboardList,
   FileText,
   Home,
+  Map,
   MapPin,
   Receipt,
   Settings,
   Truck,
+  Users,
   Wallet,
 } from "lucide-react";
 import type { PermissionCode } from "./check";
@@ -65,6 +67,24 @@ export const PC_NAV_GROUPS: NavGroupDef[] = [
         label: "配車",
         icon: Truck,
         permissions: ["dispatch_list_view", "dispatch_view"],
+      },
+    ],
+  },
+  {
+    id: "customer_mgmt",
+    label: "顧客管理",
+    children: [
+      {
+        href: "/customers",
+        label: "顧客リスト",
+        icon: Users,
+        permissions: ["project_list_other"],
+      },
+      {
+        href: "/map",
+        label: "地図",
+        icon: Map,
+        permissions: ["project_list_other"],
       },
     ],
   },

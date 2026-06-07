@@ -260,6 +260,8 @@ export function AppShell({
 
     customer: true,
 
+    customer_mgmt: true,
+
     office: true,
 
   });
