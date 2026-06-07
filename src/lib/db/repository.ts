@@ -605,7 +605,12 @@ function mapDispatchRow(row: {
 
 export async function listDispatches(
   tenantId: string,
-  filter?: { tab?: "today" | "future"; date?: string }
+  filter?: {
+    tab?: "today" | "future";
+    date?: string;
+    from?: string;
+    to?: string;
+  }
 ): Promise<DispatchRow[]> {
   const supabase = getDbClient();
   const today = filter?.date ?? new Date().toISOString().slice(0, 10);
@@ -616,8 +621,14 @@ export async function listDispatches(
     .eq("tenant_id", tenantId)
     .order("dispatch_date");
 
-  if (filter?.tab === "today") query = query.eq("dispatch_date", today);
-  if (filter?.tab === "future") query = query.gt("dispatch_date", today);
+  if (filter?.from) query = query.gte("dispatch_date", filter.from);
+  if (filter?.to) query = query.lte("dispatch_date", filter.to);
+  if (!filter?.from && !filter?.to && filter?.tab === "today") {
+    query = query.eq("dispatch_date", today);
+  }
+  if (!filter?.from && !filter?.to && filter?.tab === "future") {
+    query = query.gt("dispatch_date", today);
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);

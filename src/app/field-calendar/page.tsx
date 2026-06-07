@@ -1,29 +1,45 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { Card } from "@/components/ui/Card";
+import { FieldCalendarView } from "@/components/field-calendar/FieldCalendarView";
+import { CardGridSkeleton } from "@/components/ui/Skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function FieldCalendarPage() {
   const { user, authLoading } = useAuthGuard();
+  const { canAccess, loading: permLoading } = usePermissions();
+  const router = useRouter();
 
-  if (authLoading || !user) {
+  const allowed =
+    canAccess("dispatch_list_view") || canAccess("dispatch_view");
+
+  useEffect(() => {
+    if (authLoading || permLoading) return;
+    if (user && !allowed) router.replace("/home");
+  }, [user, authLoading, permLoading, allowed, router]);
+
+  if (authLoading || permLoading || !user) {
     return (
       <AppShell title="現場カレンダー" breadcrumbs={["ToughFlow", "現場カレンダー"]}>
-        <Card title="読み込み中">
-          <p className="text-caption text-apple-glyph">読み込み中…</p>
-        </Card>
+        <CardGridSkeleton />
+      </AppShell>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <AppShell title="現場カレンダー" breadcrumbs={["ToughFlow", "現場カレンダー"]}>
+        <CardGridSkeleton />
       </AppShell>
     );
   }
 
   return (
     <AppShell title="現場カレンダー" breadcrumbs={["ToughFlow", "現場カレンダー"]}>
-      <Card title="現場カレンダー">
-        <p className="text-caption text-apple-glyph">
-          配車・作業予定をカレンダー表示する画面です（Google Calendar 連携は今後実装予定）。
-        </p>
-      </Card>
+      <FieldCalendarView enabled={allowed} />
     </AppShell>
   );
 }
