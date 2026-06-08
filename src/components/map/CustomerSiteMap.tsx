@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AdvancedMarker,
+  APILoadingStatus,
   APIProvider,
   InfoWindow,
   Map,
+  useApiLoadingStatus,
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
@@ -46,6 +48,66 @@ async function geocodeAddress(
       }
     });
   });
+}
+
+function GoogleMapsLoadGate({ children }: { children: React.ReactNode }) {
+  const status = useApiLoadingStatus();
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+
+  if (
+    status === APILoadingStatus.NOT_LOADED ||
+    status === APILoadingStatus.LOADING
+  ) {
+    return (
+      <p className="text-caption text-apple-glyph">地図を読み込んでいます…</p>
+    );
+  }
+
+  if (
+    status === APILoadingStatus.FAILED ||
+    status === APILoadingStatus.AUTH_FAILURE
+  ) {
+    return (
+      <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <p className="font-medium">Google マップを読み込めませんでした。</p>
+        <p className="text-caption">以下をご確認ください。</p>
+        <ul className="list-disc space-y-1 pl-5 text-caption">
+          <li>
+            Google Cloud の API キー「HTTP リファラー」にこのアプリの URL を追加する
+            {origin ? `（例: ${origin}/*）` : ""}
+          </li>
+          <li>Maps JavaScript API が有効になっているか</li>
+          <li>
+            Vercel に NEXT_PUBLIC_GOOGLE_MAPS_API_KEY と
+            NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID が設定済みか（設定後は再デプロイが必要）
+          </li>
+        </ul>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function MapResizeHandler() {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    const trigger = () => {
+      google.maps.event.trigger(map, "resize");
+    };
+    trigger();
+    const timers = [100, 400, 800].map((ms) => window.setTimeout(trigger, ms));
+    window.addEventListener("resize", trigger);
+    return () => {
+      for (const id of timers) window.clearTimeout(id);
+      window.removeEventListener("resize", trigger);
+    };
+  }, [map]);
+
+  return null;
 }
 
 function MapBoundsFitter({ markers }: { markers: ResolvedMapMarker[] }) {
@@ -155,6 +217,7 @@ export function CustomerSiteMap({ enabled }: Props) {
           disableDefaultUI={false}
           className="h-[min(70vh,560px)] w-full"
         >
+          <MapResizeHandler />
           <MapBoundsFitter markers={resolved} />
           {resolved.map((marker) => (
             <AdvancedMarker
@@ -186,7 +249,10 @@ export function CustomerSiteMap({ enabled }: Props) {
         </Map>
       </div>
 
-      <Card title={`現場一覧（${resolved.length}件）`}>
+      <Card title={`顧客・現場一覧（${geocodePending ? markers.length : resolved.length}件）`}>
+        <p className="mb-3 text-nav-link text-apple-glyph">
+          顧客の住所ごとに地図へ表示します。案件一覧（/projects）とは別の画面です。
+        </p>
         {geocodePending ? (
           <p className="text-caption text-apple-glyph">住所から位置を取得しています…</p>
         ) : (
@@ -235,8 +301,15 @@ export function CustomerSiteMapRoot({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <APIProvider apiKey={apiKey} language="ja" region="JP">
-      <CustomerSiteMap enabled={enabled} />
+    <APIProvider
+      apiKey={apiKey}
+      language="ja"
+      region="JP"
+      libraries={["marker", "geocoding"]}
+    >
+      <GoogleMapsLoadGate>
+        <CustomerSiteMap enabled={enabled} />
+      </GoogleMapsLoadGate>
     </APIProvider>
   );
 }
