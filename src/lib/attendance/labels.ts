@@ -20,20 +20,28 @@ export const PUNCH_BUTTON_STYLES: Record<
   { enabled: string; disabled: string }
 > = {
   clock_in: {
-    enabled: "bg-emerald-600 text-white hover:bg-emerald-700",
-    disabled: "bg-emerald-50 text-emerald-300",
+    enabled:
+      "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700",
+    disabled:
+      "border-2 border-emerald-400 bg-emerald-50 text-emerald-800",
   },
   break_out: {
-    enabled: "bg-amber-500 text-white hover:bg-amber-600",
-    disabled: "bg-amber-50 text-amber-300",
+    enabled:
+      "bg-amber-500 text-white shadow-sm hover:bg-amber-600",
+    disabled:
+      "border-2 border-amber-400 bg-amber-50 text-amber-900",
   },
   break_in: {
-    enabled: "bg-sky-600 text-white hover:bg-sky-700",
-    disabled: "bg-sky-50 text-sky-300",
+    enabled:
+      "bg-sky-600 text-white shadow-sm hover:bg-sky-700",
+    disabled:
+      "border-2 border-sky-400 bg-sky-50 text-sky-900",
   },
   clock_out: {
-    enabled: "bg-slate-600 text-white hover:bg-slate-700",
-    disabled: "bg-slate-100 text-slate-300",
+    enabled:
+      "bg-slate-700 text-white shadow-sm hover:bg-slate-800",
+    disabled:
+      "border-2 border-slate-400 bg-slate-100 text-slate-800",
   },
 };
 

@@ -60,10 +60,10 @@ export function AttendancePunchBar() {
             disabled={!enabled}
             onClick={() => punch(type)}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-caption font-medium transition-colors focus-apple",
+              "rounded-lg px-3 py-1.5 text-caption font-semibold transition-colors focus-apple",
               getPunchButtonClassName(type, enabled),
-              !enabled && "cursor-not-allowed opacity-70",
-              submitting === type && "opacity-80"
+              !enabled && "cursor-not-allowed",
+              submitting === type && "opacity-90"
             )}
           >
             {submitting === type ? "…" : label}
