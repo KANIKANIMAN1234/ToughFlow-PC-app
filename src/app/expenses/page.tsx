@@ -13,8 +13,9 @@ import type { Expense } from "@/lib/types";
 
 export default function ExpensesPage() {
   const { user, authLoading } = useAuthGuard();
-  const { data, isLoading, mutate } = useApi<{ expenses: Expense[] }>(
-    user ? "/api/expenses?status=submitted" : null
+  const { data, isLoading, mutate, isValidating } = useApi<{ expenses: Expense[] }>(
+    user ? "/api/expenses?status=submitted" : null,
+    { refreshInterval: 5000, revalidateOnFocus: true }
   );
 
   const expenses = data?.expenses ?? [];
@@ -40,7 +41,14 @@ export default function ExpensesPage() {
       title="立替承認一覧"
       breadcrumbs={["ToughFlow", "立替精算", "承認"]}
     >
-      <Card title="提出済み経費（SC-022）">
+      <Card
+        title="提出済み経費（SC-022）"
+        action={
+          <span className="text-caption text-apple-glyph">
+            {isValidating ? "更新中…" : "5秒ごとに自動更新"}
+          </span>
+        }
+      >
         {isLoading && !data ? (
           <TableSkeleton rows={6} cols={7} />
         ) : (
