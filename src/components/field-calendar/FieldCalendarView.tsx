@@ -7,18 +7,13 @@ import { DataTable } from "@/components/ui/DataTable";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import {
-  eventShortLabel,
   formatEventTime,
-  groupEventsByDate,
   groupEventsByPerson,
   groupEventsBySite,
 } from "@/lib/field-calendar/google-events";
 import {
-  buildMonthGrid,
   formatMonthTitle,
   getMonthRange,
-  getTodayKey,
-  WEEKDAY_LABELS,
   type CalendarViewMode,
 } from "@/lib/field-calendar/grid";
 import type { GoogleCalendarEvent } from "@/lib/google/calendar";
@@ -30,29 +25,8 @@ const VIEW_TABS: { id: CalendarViewMode; label: string }[] = [
   { id: "site", label: "現場軸" },
 ];
 
-const MAX_EVENTS_PER_CELL = 3;
-
-function EventDetailRow({ event }: { event: GoogleCalendarEvent }) {
-  return (
-    <div className="rounded-xl border border-surface-border bg-white px-3 py-2.5">
-      <p className="text-caption font-normal text-apple-text">{event.title}</p>
-      <p className="text-nav-link text-apple-glyph">
-        {formatEventTime(event)}
-        {event.location ? ` · ${event.location}` : ""}
-      </p>
-      {event.assignees.length > 0 && (
-        <p className="text-nav-link text-apple-glyph">
-          参加者: {event.assignees.join("、")}
-        </p>
-      )}
-      {event.description && (
-        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-nav-link text-apple-glyph">
-          {event.description}
-        </p>
-      )}
-    </div>
-  );
-}
+const GOOGLE_CALENDAR_EMBED_URL =
+  "https://calendar.google.com/calendar/embed?src=kanikaniman1234%40gmail.com&ctz=Asia%2FTokyo";
 
 type Props = {
   enabled: boolean;
@@ -63,7 +37,6 @@ export function FieldCalendarView({ enabled }: Props) {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("calendar");
-  const [selectedDate, setSelectedDate] = useState(getTodayKey());
 
   const range = useMemo(() => getMonthRange(year, month), [year, month]);
   const { data, isLoading, error } = useApi<{
@@ -72,11 +45,8 @@ export function FieldCalendarView({ enabled }: Props) {
   }>(enabled ? `/api/calendar/events?from=${range.from}&to=${range.to}` : null);
 
   const events = useMemo(() => data?.events ?? [], [data?.events]);
-  const byDate = useMemo(() => groupEventsByDate(events), [events]);
   const byPerson = useMemo(() => groupEventsByPerson(events), [events]);
   const bySite = useMemo(() => groupEventsBySite(events), [events]);
-  const monthGrid = useMemo(() => buildMonthGrid(year, month), [year, month]);
-  const selectedRows = byDate.get(selectedDate) ?? [];
 
   function shiftMonth(delta: number) {
     const d = new Date(year, month - 1 + delta, 1);
@@ -88,7 +58,6 @@ export function FieldCalendarView({ enabled }: Props) {
     const now = new Date();
     setYear(now.getFullYear());
     setMonth(now.getMonth() + 1);
-    setSelectedDate(getTodayKey());
   }
 
   return (
@@ -142,7 +111,16 @@ export function FieldCalendarView({ enabled }: Props) {
         </div>
       </div>
 
-      {error ? (
+      {viewMode === "calendar" ? (
+        <div className="overflow-hidden rounded-card border border-surface-border bg-white">
+          <iframe
+            src={GOOGLE_CALENDAR_EMBED_URL}
+            title="Googleカレンダー"
+            className="w-full border-0"
+            style={{ height: 600 }}
+          />
+        </div>
+      ) : error ? (
         <Card title="Googleカレンダー">
           <p className="text-caption text-red-600">
             Googleカレンダーの取得に失敗しました。
@@ -153,84 +131,6 @@ export function FieldCalendarView({ enabled }: Props) {
         </Card>
       ) : isLoading && !data ? (
         <TableSkeleton rows={8} cols={7} />
-      ) : viewMode === "calendar" ? (
-        <>
-          <Card title={`Googleカレンダー予定（${events.length}件）`}>
-            <div className="overflow-x-auto">
-              <div className="grid min-w-[640px] grid-cols-7 border-b border-surface-border">
-                {WEEKDAY_LABELS.map((label, i) => (
-                  <div
-                    key={label}
-                    className={cn(
-                      "py-2 text-center text-caption font-normal",
-                      i === 0 ? "text-red-500" : i === 6 ? "text-blue-600" : "text-apple-glyph"
-                    )}
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
-              <div className="grid min-w-[640px] grid-cols-7">
-                {monthGrid.map((cell) => {
-                  const dayEvents = byDate.get(cell.dateKey) ?? [];
-                  const isSelected = selectedDate === cell.dateKey;
-                  return (
-                    <button
-                      key={cell.dateKey}
-                      type="button"
-                      onClick={() => setSelectedDate(cell.dateKey)}
-                      className={cn(
-                        "min-h-[6.5rem] border-b border-r border-surface-border p-1.5 text-left transition-colors focus-apple",
-                        !cell.inMonth && "bg-apple-section/40",
-                        isSelected && "bg-brand-50 ring-2 ring-inset ring-brand-400",
-                        cell.isToday && !isSelected && "bg-amber-50/60"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-flex h-6 w-6 items-center justify-center rounded-full text-caption",
-                          cell.isToday && "bg-brand-600 font-normal text-white",
-                          !cell.inMonth && "text-apple-glyph/60",
-                          cell.inMonth && !cell.isToday && "text-apple-text"
-                        )}
-                      >
-                        {cell.day}
-                      </span>
-                      <div className="mt-1 space-y-0.5">
-                        {dayEvents.slice(0, MAX_EVENTS_PER_CELL).map((ev) => (
-                          <div
-                            key={ev.id}
-                            className="truncate rounded bg-sky-50 px-1 py-0.5 text-[10px] leading-tight text-sky-900"
-                            title={ev.title}
-                          >
-                            {eventShortLabel(ev)}
-                          </div>
-                        ))}
-                        {dayEvents.length > MAX_EVENTS_PER_CELL && (
-                          <p className="text-[10px] text-apple-glyph">
-                            +{dayEvents.length - MAX_EVENTS_PER_CELL}件
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Card>
-
-          <Card title={`${formatDate(selectedDate)} の予定（${selectedRows.length}件）`}>
-            {selectedRows.length === 0 ? (
-              <p className="text-caption text-apple-glyph">この日の予定はありません。</p>
-            ) : (
-              <div className="space-y-2">
-                {selectedRows.map((row) => (
-                  <EventDetailRow key={row.id} event={row} />
-                ))}
-              </div>
-            )}
-          </Card>
-        </>
       ) : viewMode === "person" ? (
         <Card title={`人軸表示（${byPerson.length}名）`}>
           {byPerson.length === 0 ? (
