@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { CustomerSiteMapRoot } from "@/components/map/CustomerSiteMap";
-import { Card } from "@/components/ui/Card";
 import { CardGridSkeleton } from "@/components/ui/Skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -39,9 +38,9 @@ export default function MapPage() {
 
   return (
     <AppShell title="地図" breadcrumbs={["ToughFlow", "地図"]}>
-      <Card title="顧客・案件の現場位置">
+      <div className="flex h-[calc(100dvh-3.5rem)] flex-col -m-6">
         <CustomerSiteMapRoot enabled={allowed} />
-      </Card>
+      </div>
     </AppShell>
   );
 }
