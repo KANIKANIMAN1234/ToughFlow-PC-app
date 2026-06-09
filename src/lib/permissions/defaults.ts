@@ -106,6 +106,13 @@ export const DEFAULT_PERMISSION_MATRIX: Record<
     field: "deny",
     partner: "deny",
   },
+  project_register: {
+    admin: "allow",
+    office: "deny",
+    manager: "allow",
+    field: "deny",
+    partner: "deny",
+  },
   dispatch_list_view: {
     admin: "allow",
     office: "allow",
