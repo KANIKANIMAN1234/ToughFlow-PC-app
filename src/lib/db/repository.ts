@@ -585,7 +585,7 @@ export async function listSiteSurveys(
   tenantId: string,
   userId?: string
 ): Promise<SiteSurvey[]> {
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   let query = supabase
     .from("t_site_survey")
     .select(
@@ -606,7 +606,7 @@ export async function getSiteSurvey(
   tenantId: string,
   id: string
 ): Promise<SiteSurvey | null> {
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("t_site_survey")
     .select(
