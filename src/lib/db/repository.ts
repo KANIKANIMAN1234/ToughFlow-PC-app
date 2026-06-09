@@ -554,6 +554,9 @@ export async function listMapMarkers(tenantId: string) {
     }));
 }
 
+const EXPENSE_LIST_SELECT =
+  "id, project_id, user_id, amount, category_id, expense_date, status, input_method, created_at, m_project(name), m_user!user_id(name), m_expense_category(name)";
+
 export async function listExpenses(
   tenantId: string,
   filter?: { status?: Expense["status"]; userId?: string }
@@ -562,9 +565,7 @@ export async function listExpenses(
   const supabase = createAdminClient();
   let query = supabase
     .from("t_expense")
-    .select(
-      "id, project_id, user_id, amount, category_id, expense_date, status, input_method, created_at, m_project(name), m_user(name), m_expense_category(name)"
-    )
+    .select(EXPENSE_LIST_SELECT)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -619,9 +620,7 @@ export async function updateExpenseStatus(
     .update(patch)
     .eq("tenant_id", tenantId)
     .eq("id", id)
-    .select(
-      "id, project_id, user_id, amount, category_id, expense_date, status, input_method, created_at, m_project(name), m_user(name), m_expense_category(name)"
-    )
+    .select(EXPENSE_LIST_SELECT)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
