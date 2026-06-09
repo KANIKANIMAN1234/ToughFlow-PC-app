@@ -63,6 +63,31 @@ export interface Project {
   status: "active" | "completed";
 }
 
+export interface CustomerOption {
+  id: string;
+  name: string;
+}
+
+export interface AssignableUser {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
+export type ProjectAssignmentRole = "main" | "sub";
+
+export type ProjectAssignmentInput = {
+  userId: string;
+  assignmentRole: ProjectAssignmentRole;
+};
+
+export type CreateProjectInput = {
+  name: string;
+  customerId: string;
+  workStartDate?: string;
+  assignments: ProjectAssignmentInput[];
+};
+
 export interface MachineRow {
   name: string;
   maker: string;

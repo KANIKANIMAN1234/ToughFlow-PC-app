@@ -48,6 +48,9 @@ import type {
   AttendancePunch,
   AttendancePunchType,
   AttendanceStatus,
+  AssignableUser,
+  CreateProjectInput,
+  CustomerOption,
   SiteSurvey,
   SiteSurveyContent,
   SiteSurveyMasters,
@@ -360,6 +363,102 @@ export async function listProjects(
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data as DbProjectRow[]).map(mapProject);
+}
+
+export async function listCustomerOptions(
+  tenantId: string
+): Promise<CustomerOption[]> {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_customer")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+  }));
+}
+
+export async function listAssignableUsers(
+  tenantId: string
+): Promise<AssignableUser[]> {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_user")
+    .select("id, name, role")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    role: row.role as UserRole,
+  }));
+}
+
+export async function createProjectWithAssignments(
+  tenantId: string,
+  input: CreateProjectInput
+): Promise<Project> {
+  if (!input.name.trim()) throw new Error("案件名を入力してください");
+  if (!input.customerId) throw new Error("顧客を選択してください");
+  if (!input.assignments.length) {
+    throw new Error("担当者を1名以上選択してください");
+  }
+
+  const userIds = input.assignments.map((a) => a.userId);
+  if (userIds.some((id) => !id)) {
+    throw new Error("担当者を選択してください");
+  }
+  if (new Set(userIds).size !== userIds.length) {
+    throw new Error("同じ担当者が重複しています");
+  }
+  if (!input.assignments.some((a) => a.assignmentRole === "main")) {
+    throw new Error("メイン担当者を1名以上指定してください");
+  }
+
+  const supabase = getDbClient();
+  const workStartDate =
+    input.workStartDate?.trim() || new Date().toISOString().slice(0, 10);
+
+  const { data: project, error } = await supabase
+    .from("m_project")
+    .insert({
+      tenant_id: tenantId,
+      customer_id: input.customerId,
+      name: input.name.trim(),
+      status: "active",
+      work_start_date: workStartDate,
+    })
+    .select(
+      "id, tenant_id, name, status, sales_amount, estimated_amount, gross_margin_rate, m_customer(name, address)"
+    )
+    .single();
+
+  if (error) throw new Error(formatDbError(error.message));
+
+  const assignments = input.assignments.map((assignment) => ({
+    tenant_id: tenantId,
+    project_id: project.id as string,
+    user_id: assignment.userId,
+    assignment_role: assignment.assignmentRole,
+  }));
+
+  const { error: assignError } = await supabase
+    .from("t_project_assignment")
+    .insert(assignments);
+
+  if (assignError) {
+    await supabase.from("m_project").delete().eq("id", project.id);
+    throw new Error(formatDbError(assignError.message));
+  }
+
+  return mapProject(project as DbProjectRow);
 }
 
 export async function listCustomers(tenantId: string): Promise<Customer[]> {
