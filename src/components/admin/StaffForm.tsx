@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions/defaults";
@@ -19,7 +20,10 @@ import { cn } from "@/lib/utils";
 
 function parseDateParts(value?: string) {
   if (!value) return { year: "", month: "", day: "" };
-  const [year, month, day] = value.split("-");
+  const dateOnly = value.includes("T")
+    ? value.slice(0, 10)
+    : value.split(" ")[0] ?? value;
+  const [year, month, day] = dateOnly.split("-");
   return {
     year: year ?? "",
     month: month ? String(Number(month)) : "",
@@ -52,8 +56,15 @@ function DatePartsField({
   onChange: (iso: string) => void;
   yearOptions: number[];
 }) {
-  const parts = parseDateParts(value);
-  const years = resolveYearOptions(yearOptions, value);
+  const [parts, setParts] = useState(() => parseDateParts(value));
+
+  useEffect(() => {
+    if (value) {
+      setParts(parseDateParts(value));
+    }
+  }, [value]);
+
+  const years = resolveYearOptions(yearOptions, value || buildDateIso(parts.year, parts.month, parts.day));
   const maxDay = daysInMonth(Number(parts.year), Number(parts.month));
   const dayOptions = Array.from({ length: maxDay }, (_, i) => i + 1);
   const selectClass =
@@ -67,6 +78,7 @@ function DatePartsField({
         merged.day = String(limit);
       }
     }
+    setParts(merged);
     onChange(buildDateIso(merged.year, merged.month, merged.day));
   }
 
