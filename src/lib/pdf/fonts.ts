@@ -1,6 +1,16 @@
+import path from "path";
 import { Font } from "@react-pdf/renderer";
 
 let registered = false;
+
+/** @fontsource/noto-sans-jp の woff を参照（CDN 404 回避） */
+function fontPath(filename: string) {
+  return path.join(
+    process.cwd(),
+    "node_modules/@fontsource/noto-sans-jp/files",
+    filename
+  );
+}
 
 export function registerPdfFonts() {
   if (registered) return;
@@ -8,11 +18,11 @@ export function registerPdfFonts() {
     family: "NotoSansJP",
     fonts: [
       {
-        src: "https://cdn.jsdelivr.net/npm/@canvas-fonts/noto-sans-jp@1.0.4/NotoSansJP-Regular.otf",
+        src: fontPath("noto-sans-jp-japanese-400-normal.woff"),
         fontWeight: 400,
       },
       {
-        src: "https://cdn.jsdelivr.net/npm/@canvas-fonts/noto-sans-jp@1.0.4/NotoSansJP-Bold.otf",
+        src: fontPath("noto-sans-jp-japanese-700-normal.woff"),
         fontWeight: 700,
       },
     ],
