@@ -7,22 +7,17 @@ import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import {
+  buildFolderHierarchyPreview,
   buildFolderSettingsFields,
   DRIVE_DOCUMENT_TYPES,
   DRIVE_DOCUMENT_TYPE_LABELS,
   mergeDocumentFolderMap,
+  remapDocumentFolderMapOnSubfolderChange,
   syncMappingsToSubfolders,
   type DriveDocumentType,
 } from "@/lib/folder/document-folder-map";
 import type { FolderSettings } from "@/lib/types";
 import { api } from "@/lib/utils";
-
-function mappingPreviewLines(folder: FolderSettings): string[] {
-  return DRIVE_DOCUMENT_TYPES.map(
-    (type) =>
-      `│       │   ${DRIVE_DOCUMENT_TYPE_LABELS[type]} → ${folder.documentFolderMap[type]}/`
-  );
-}
 
 function normalizeFolder(raw: Partial<FolderSettings> | undefined): FolderSettings | null {
   if (!raw) return null;
@@ -94,13 +89,29 @@ export function FolderDesignPanel() {
   }
 
   function update(patch: Partial<FolderSettings>) {
-    const base = buildFolderSettingsFields({ ...folder!, ...patch });
-    const subfolderNames = patch.subfolderNames ?? base.subfolderNames;
+    const current = folder!;
+    const nextSubfolders = patch.subfolderNames ?? current.subfolderNames;
+    let nextMap = patch.documentFolderMap ?? current.documentFolderMap;
+
+    if (patch.subfolderNames) {
+      nextMap = remapDocumentFolderMapOnSubfolderChange(
+        current.subfolderNames,
+        nextSubfolders,
+        nextMap
+      );
+    }
+
     const documentFolderMap = syncMappingsToSubfolders(
-      subfolderNames,
-      mergeDocumentFolderMap(patch.documentFolderMap ?? base.documentFolderMap)
+      nextSubfolders,
+      mergeDocumentFolderMap(nextMap)
     );
-    setForm({ ...base, subfolderNames, documentFolderMap });
+    const base = buildFolderSettingsFields({
+      ...current,
+      ...patch,
+      subfolderNames: nextSubfolders,
+      documentFolderMap,
+    });
+    setForm(base);
   }
 
   function updateDocumentFolder(type: DriveDocumentType, folderName: string) {
@@ -188,13 +199,11 @@ export function FolderDesignPanel() {
       </Card>
 
       <Card title="階層プレビュー">
+        <p className="mb-3 text-caption text-apple-glyph">
+          サブフォルダ名・書類の保存先を変更すると、下記の構成図がリアルタイムで更新されます。
+        </p>
         <pre className="rounded-card bg-apple-section p-4 text-caption text-apple-glyph">
-{`{保存先ルート}/
-├── {顧客名}/
-│   └── {プロジェクト名}/  ← ${folder.projectNamePattern}
-${folder.subfolderNames.map((s) => `│       ├── ${s}/`).join("\n")}
-${mappingPreviewLines(folder).join("\n")}
-└── _処理済みメール/`}
+          {buildFolderHierarchyPreview(folder)}
         </pre>
       </Card>
 
