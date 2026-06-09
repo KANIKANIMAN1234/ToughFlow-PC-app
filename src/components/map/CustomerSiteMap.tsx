@@ -213,6 +213,43 @@ function MapClickPlacer({
   return null;
 }
 
+function CustomerSelectionBar({
+  customerName,
+  address,
+  onStartEdit,
+  onClose,
+}: {
+  customerName: string;
+  address: string;
+  onStartEdit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="pointer-events-auto absolute inset-x-4 bottom-4 z-20 mx-auto max-w-lg rounded-xl border border-surface-border bg-white p-4 shadow-lg">
+      <div className="mb-3">
+        <p className="text-sm font-semibold text-gray-900">{customerName}</p>
+        <p className="mt-0.5 text-xs text-gray-600">{address}</p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="flex-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          onClick={onStartEdit}
+        >
+          位置を修正
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          onClick={onClose}
+        >
+          閉じる
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LocationEditBar({
   customerName,
   position,
@@ -438,7 +475,10 @@ export function CustomerSiteMap({ enabled }: Props) {
 
   const selected = resolved.find((m) => m.id === selectedId) ?? null;
   const editingMarker = resolved.find((m) => m.id === editingId) ?? null;
-  const showInfoWindow = selected && editingId == null;
+  const showSelectionBar =
+    selected != null && editingId == null && canEditLocation;
+  const showInfoWindow =
+    selected != null && editingId == null && !canEditLocation;
 
   if (isLoading && !data) {
     return <TableSkeleton rows={6} cols={1} />;
@@ -507,7 +547,7 @@ export function CustomerSiteMap({ enabled }: Props) {
             position={{ lat: selected.lat, lng: selected.lng }}
             onCloseClick={() => setSelectedId(null)}
           >
-            <div className="max-w-xs space-y-2 text-sm text-gray-900">
+            <div className="max-w-xs space-y-1 text-sm text-gray-900">
               <p className="font-medium">{selected.customerName}</p>
               <p>{selected.address}</p>
               {selected.projects.length > 0 && (
@@ -517,19 +557,19 @@ export function CustomerSiteMap({ enabled }: Props) {
                   ))}
                 </ul>
               )}
-              {canEditLocation && (
-                <button
-                  type="button"
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                  onClick={() => startEdit(selected)}
-                >
-                  位置を修正
-                </button>
-              )}
             </div>
           </InfoWindow>
         )}
       </MapViewport>
+
+      {showSelectionBar && selected && (
+        <CustomerSelectionBar
+          customerName={selected.customerName}
+          address={selected.address}
+          onStartEdit={() => startEdit(selected)}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
 
       {editingId && editingMarker && draftPos && (
         <LocationEditBar
