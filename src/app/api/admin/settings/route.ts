@@ -1,23 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  createTenantStaff,
+  findEmploymentWorkRuleByScope,
+  getEmploymentWorkRule,
   getFolderSettings,
   getPartnerShareSettings,
   getRolePermissionMatrix,
+  getTenantStaff,
   getUserPermissionOverrides,
-  listTenantUsers,
+  listEmploymentWorkRules,
+  listTenantStaff,
   updateFolderSettings,
   updatePartnerShareSettings,
   updateRolePermissionMatrix,
+  updateTenantStaff,
   updateUserPermissionOverrides,
   updateUserRole,
+  upsertEmploymentWorkRule,
   deactivateTenantUser,
 } from "@/lib/db/repository";
 import { withPermission } from "@/lib/permissions/check";
 import type {
   AccessLevel,
+  EmploymentWorkRuleInput,
   FolderSettings,
   PartnerDefaultMethod,
   ShareNotifyMethod,
+  StaffInput,
+  StaffType,
   UserRole,
 } from "@/lib/types";
 
@@ -47,9 +57,57 @@ export async function GET(request: NextRequest) {
           const partner = await getPartnerShareSettings(session.tenantId);
           return NextResponse.json({ partner });
         }
-        case "users": {
-          const users = await listTenantUsers(session.tenantId);
-          return NextResponse.json({ users });
+        case "employment_work_rules": {
+          const rules = await listEmploymentWorkRules(session.tenantId);
+          return NextResponse.json({ rules });
+        }
+        case "employment_work_rule": {
+          const ruleId = request.nextUrl.searchParams.get("ruleId") ?? undefined;
+          const groupKey =
+            request.nextUrl.searchParams.get("groupKey") ?? undefined;
+          const staffTypeParam =
+            request.nextUrl.searchParams.get("staffType") ?? undefined;
+          const staffType =
+            staffTypeParam && staffTypeParam !== ""
+              ? (staffTypeParam as StaffType)
+              : null;
+
+          if (ruleId) {
+            const rule = await getEmploymentWorkRule(session.tenantId, ruleId);
+            if (!rule) {
+              return NextResponse.json(
+                { error: "設定が見つかりません" },
+                { status: 404 }
+              );
+            }
+            return NextResponse.json({ rule });
+          }
+
+          if (groupKey !== undefined) {
+            const rule = await findEmploymentWorkRuleByScope(
+              session.tenantId,
+              groupKey,
+              staffType
+            );
+            return NextResponse.json({ rule });
+          }
+
+          return NextResponse.json({ error: "invalid query" }, { status: 400 });
+        }
+        case "users":
+        case "staff": {
+          if (userId) {
+            const staff = await getTenantStaff(session.tenantId, userId);
+            if (!staff) {
+              return NextResponse.json(
+                { error: "スタッフが見つかりません" },
+                { status: 404 }
+              );
+            }
+            return NextResponse.json({ staff });
+          }
+          const staff = await listTenantStaff(session.tenantId);
+          return NextResponse.json({ staff, users: staff });
         }
         default:
           return NextResponse.json({ error: "invalid section" }, { status: 400 });
@@ -57,6 +115,28 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       const message = e instanceof Error ? e.message : "取得に失敗しました";
       return NextResponse.json({ error: message }, { status: 500 });
+    }
+  });
+}
+
+export async function POST(request: NextRequest) {
+  return withPermission(request, "admin_settings", async ({ session }) => {
+    try {
+      const body = await request.json();
+      const { section } = body as { section: string };
+
+      if (section === "staff_create") {
+        const staff = await createTenantStaff(
+          session.tenantId,
+          body.staff as StaffInput
+        );
+        return NextResponse.json({ staff });
+      }
+
+      return NextResponse.json({ error: "invalid section" }, { status: 400 });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "登録に失敗しました";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
   });
 }
@@ -120,6 +200,24 @@ export async function PATCH(request: NextRequest) {
             session.id
           );
           return NextResponse.json({ users });
+        }
+        case "employment_work_rule": {
+          const rule = await upsertEmploymentWorkRule(
+            session.tenantId,
+            body.rule as EmploymentWorkRuleInput,
+            session.id,
+            body.ruleId as string | undefined
+          );
+          return NextResponse.json({ rule });
+        }
+        case "staff_update": {
+          const staff = await updateTenantStaff(
+            session.tenantId,
+            body.userId as string,
+            body.staff as StaffInput,
+            session.id
+          );
+          return NextResponse.json({ staff });
         }
         case "user_deactivate": {
           const users = await deactivateTenantUser(

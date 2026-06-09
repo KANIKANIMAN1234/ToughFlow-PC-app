@@ -4,6 +4,13 @@ import {
   validatePunchTransition,
   workDateJST,
 } from "@/lib/attendance/state";
+import { hashPassword } from "@/lib/auth/password";
+import {
+  DEFAULT_EMPLOYMENT_WORK_RULE,
+  fromTotalMinutes,
+  toTotalMinutes,
+} from "@/lib/employment/work-rule-defaults";
+import { buildStaffName, validateStaffInput } from "@/lib/staff/validation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDbClient } from "@/lib/supabase/context";
 import { formatDbError } from "@/lib/db/errors";
@@ -40,6 +47,12 @@ import type {
   SiteSurveyMasters,
   SiteSurveyTool,
   SiteSurveyWorkType,
+  EmploymentWorkRule,
+  EmploymentWorkRuleInput,
+  PrescribedWorkDaysType,
+  StaffInput,
+  StaffType,
+  TenantStaff,
   TenantUser,
   User,
   UserRole,
@@ -1571,25 +1584,217 @@ export async function updateRolePermissionMatrix(
   return getRolePermissionMatrix(tenantId);
 }
 
+const STAFF_USER_COLUMNS =
+  "id, name, last_name, first_name, role, email, share_notify_method, line_user_id, phone, birth_date, staff_code, staff_type, hourly_wage, prescribed_work_days_type, prescribed_work_minutes, transportation_allowance, join_date, remark1, remark2, remark3, tags";
+
+function toPrescribedWorkParts(minutes: number | null | undefined) {
+  if (minutes == null || minutes <= 0) return { hours: 0, minutes: 0 };
+  return { hours: Math.floor(minutes / 60), minutes: minutes % 60 };
+}
+
+function mapStaffRow(row: Record<string, unknown>): TenantStaff {
+  const prescribed = toPrescribedWorkParts(
+    row.prescribed_work_minutes as number | null | undefined
+  );
+  const lastName = (row.last_name as string | null) ?? "";
+  const firstName = (row.first_name as string | null) ?? "";
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? buildStaffName(lastName, firstName),
+    lastName,
+    firstName,
+    role: row.role as UserRole,
+    email: (row.email as string | null) ?? undefined,
+    shareNotifyMethod: row.share_notify_method as ShareNotifyMethod,
+    lineUserId: (row.line_user_id as string | null) ?? undefined,
+    phone: (row.phone as string | null) ?? undefined,
+    birthDate: (row.birth_date as string | null) ?? undefined,
+    staffCode: (row.staff_code as string | null) ?? undefined,
+    staffType: ((row.staff_type as string | null) ?? "unclassified") as StaffType,
+    hourlyWage: (row.hourly_wage as number | null) ?? null,
+    prescribedWorkDaysType:
+      ((row.prescribed_work_days_type as string | null) ??
+        "unset") as PrescribedWorkDaysType,
+    prescribedWorkHours: prescribed.hours,
+    prescribedWorkMinutes: prescribed.minutes,
+    transportationAllowance:
+      (row.transportation_allowance as number | null) ?? null,
+    joinDate: (row.join_date as string | null) ?? undefined,
+    remark1: (row.remark1 as string | null) ?? undefined,
+    remark2: (row.remark2 as string | null) ?? undefined,
+    remark3: (row.remark3 as string | null) ?? undefined,
+    tags: (row.tags as string | null) ?? undefined,
+  };
+}
+
+function buildStaffDbPayload(
+  input: StaffInput,
+  passwordHash?: string | null
+): Record<string, unknown> {
+  const prescribedTotal =
+    input.prescribedWorkHours * 60 + input.prescribedWorkMinutes;
+  const payload: Record<string, unknown> = {
+    last_name: input.lastName.trim(),
+    first_name: input.firstName.trim(),
+    name: buildStaffName(input.lastName, input.firstName),
+    role: input.role,
+    email: input.email?.trim() || null,
+    phone: input.phone?.trim() || null,
+    birth_date: input.birthDate || null,
+    staff_code: input.staffCode?.trim() || null,
+    staff_type: input.staffType,
+    hourly_wage: input.hourlyWage ?? null,
+    prescribed_work_days_type:
+      input.prescribedWorkDaysType === "unset"
+        ? null
+        : input.prescribedWorkDaysType,
+    prescribed_work_minutes: prescribedTotal > 0 ? prescribedTotal : null,
+    transportation_allowance: input.transportationAllowance ?? null,
+    join_date: input.joinDate || null,
+    remark1: input.remark1?.trim() || null,
+    remark2: input.remark2?.trim() || null,
+    remark3: input.remark3?.trim() || null,
+    tags: input.tags?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  if (passwordHash !== undefined) {
+    payload.password_hash = passwordHash;
+  }
+  return payload;
+}
+
 export async function listTenantUsers(tenantId: string): Promise<TenantUser[]> {
+  const staff = await listTenantStaff(tenantId);
+  return staff.map((user) => ({
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    email: user.email,
+    shareNotifyMethod: user.shareNotifyMethod,
+    lineUserId: user.lineUserId,
+  }));
+}
+
+export async function listTenantStaff(
+  tenantId: string
+): Promise<TenantStaff[]> {
   const supabase = getDbClient();
   const { data, error } = await supabase
     .from("m_user")
-    .select("id, name, role, email, share_notify_method, line_user_id")
+    .select(STAFF_USER_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .order("name");
 
   if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapStaffRow(row as Record<string, unknown>));
+}
 
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    name: row.name as string,
-    role: row.role as UserRole,
-    email: (row.email as string | null) ?? undefined,
-    shareNotifyMethod: row.share_notify_method as ShareNotifyMethod,
-    lineUserId: (row.line_user_id as string | null) ?? undefined,
-  }));
+export async function getTenantStaff(
+  tenantId: string,
+  userId: string
+): Promise<TenantStaff | null> {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_user")
+    .select(STAFF_USER_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .eq("id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapStaffRow(data as Record<string, unknown>);
+}
+
+export async function createTenantStaff(
+  tenantId: string,
+  input: StaffInput
+): Promise<TenantStaff> {
+  const validationError = validateStaffInput(input, { requirePassword: true });
+  if (validationError) throw new Error(validationError);
+
+  const supabase = getDbClient();
+  const passwordHash = await hashPassword(input.password!.trim());
+  const payload = {
+    tenant_id: tenantId,
+    ...buildStaffDbPayload(input, passwordHash),
+    is_active: true,
+  };
+
+  const { data, error } = await supabase
+    .from("m_user")
+    .insert(payload)
+    .select(STAFF_USER_COLUMNS)
+    .single();
+
+  if (error) {
+    if (error.code === "23505" && error.message.includes("staff_code")) {
+      throw new Error("このスタッフコードは既に使用されています");
+    }
+    throw new Error(error.message);
+  }
+
+  return mapStaffRow(data as Record<string, unknown>);
+}
+
+export async function updateTenantStaff(
+  tenantId: string,
+  userId: string,
+  input: StaffInput,
+  actingUserId: string
+): Promise<TenantStaff> {
+  const validationError = validateStaffInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const supabase = getDbClient();
+  const { data: target, error: targetError } = await supabase
+    .from("m_user")
+    .select("id, role")
+    .eq("tenant_id", tenantId)
+    .eq("id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (targetError) throw new Error(targetError.message);
+  if (!target) throw new Error("スタッフが見つかりません");
+
+  if (target.role === "admin" && input.role !== "admin") {
+    const { count, error: countError } = await supabase
+      .from("m_user")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("role", "admin")
+      .eq("is_active", true);
+    if (countError) throw new Error(countError.message);
+    if ((count ?? 0) <= 1) {
+      throw new Error("最後の管理者の役職は変更できません");
+    }
+  }
+
+  let passwordHash: string | null | undefined;
+  if (input.password?.trim()) {
+    passwordHash = await hashPassword(input.password.trim());
+  }
+
+  const { data, error } = await supabase
+    .from("m_user")
+    .update(buildStaffDbPayload(input, passwordHash))
+    .eq("tenant_id", tenantId)
+    .eq("id", userId)
+    .select(STAFF_USER_COLUMNS)
+    .single();
+
+  if (error) {
+    if (error.code === "23505" && error.message.includes("staff_code")) {
+      throw new Error("このスタッフコードは既に使用されています");
+    }
+    throw new Error(error.message);
+  }
+
+  void actingUserId;
+  return mapStaffRow(data as Record<string, unknown>);
 }
 
 export async function updateUserRole(
@@ -1806,4 +2011,223 @@ export async function updatePartnerShareSettings(
   }
 
   return getPartnerShareSettings(tenantId);
+}
+
+function mapEmploymentWorkRuleRow(
+  row: Record<string, unknown>
+): EmploymentWorkRule {
+  const scheduled = fromTotalMinutes(row.scheduled_limit_minutes as number);
+  const overtimeDay = fromTotalMinutes(
+    row.overtime_day_threshold_minutes as number
+  );
+  const overtimeWeek = fromTotalMinutes(
+    row.overtime_week_threshold_minutes as number
+  );
+  const deemed = fromTotalMinutes(row.deemed_overtime_minutes as number);
+  const lateStart = fromTotalMinutes(row.late_night_start_minutes as number);
+  const lateEnd = fromTotalMinutes(row.late_night_end_minutes as number);
+
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    groupKey: (row.group_key as string) ?? "",
+    staffType: (row.staff_type as StaffType | null) ?? null,
+    scheduledCalcType: row.scheduled_calc_type as EmploymentWorkRule["scheduledCalcType"],
+    scheduledLimitHours: scheduled.hours,
+    scheduledLimitMinutes: scheduled.minutes,
+    overtimeRatePercent: row.overtime_rate_percent as number,
+    overtimeCalcType: row.overtime_calc_type as EmploymentWorkRule["overtimeCalcType"],
+    overtimeDayThresholdHours: overtimeDay.hours,
+    overtimeDayThresholdMinutes: overtimeDay.minutes,
+    overtimeWeekThresholdHours: overtimeWeek.hours,
+    overtimeWeekThresholdMinutes: overtimeWeek.minutes,
+    deemedOvertimeEnabled: row.deemed_overtime_enabled as boolean,
+    deemedOvertimeHours: deemed.hours,
+    deemedOvertimeMinutes: deemed.minutes,
+    excludeStatutoryHolidays: row.exclude_statutory_holidays as boolean,
+    lateNightRatePercent: row.late_night_rate_percent as number,
+    lateNightStartHour: lateStart.hours,
+    lateNightStartMinute: lateStart.minutes,
+    lateNightEndHour: lateEnd.hours,
+    lateNightEndMinute: lateEnd.minutes,
+    includeEarlyMorningInLateNight:
+      row.include_early_morning_in_late_night as boolean,
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function buildEmploymentWorkRuleDbPayload(
+  input: EmploymentWorkRuleInput,
+  updatedBy?: string
+) {
+  return {
+    group_key: input.groupKey ?? "",
+    staff_type: input.staffType,
+    scheduled_calc_type: input.scheduledCalcType,
+    scheduled_limit_minutes: toTotalMinutes(
+      input.scheduledLimitHours,
+      input.scheduledLimitMinutes
+    ),
+    overtime_rate_percent: input.overtimeRatePercent,
+    overtime_calc_type: input.overtimeCalcType,
+    overtime_day_threshold_minutes: toTotalMinutes(
+      input.overtimeDayThresholdHours,
+      input.overtimeDayThresholdMinutes
+    ),
+    overtime_week_threshold_minutes: toTotalMinutes(
+      input.overtimeWeekThresholdHours,
+      input.overtimeWeekThresholdMinutes
+    ),
+    deemed_overtime_enabled: input.deemedOvertimeEnabled,
+    deemed_overtime_minutes: toTotalMinutes(
+      input.deemedOvertimeHours,
+      input.deemedOvertimeMinutes
+    ),
+    exclude_statutory_holidays: input.excludeStatutoryHolidays,
+    late_night_rate_percent: input.lateNightRatePercent,
+    late_night_start_minutes: toTotalMinutes(
+      input.lateNightStartHour,
+      input.lateNightStartMinute
+    ),
+    late_night_end_minutes: toTotalMinutes(
+      input.lateNightEndHour,
+      input.lateNightEndMinute
+    ),
+    include_early_morning_in_late_night: input.includeEarlyMorningInLateNight,
+    updated_at: new Date().toISOString(),
+    updated_by: updatedBy ?? null,
+  };
+}
+
+async function ensureDefaultEmploymentWorkRule(
+  tenantId: string
+): Promise<void> {
+  const supabase = getDbClient();
+  const { count, error } = await supabase
+    .from("m_employment_work_rule")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if (error) throw new Error(error.message);
+  if ((count ?? 0) > 0) return;
+
+  const { error: insertError } = await supabase
+    .from("m_employment_work_rule")
+    .insert({
+      tenant_id: tenantId,
+      ...buildEmploymentWorkRuleDbPayload(DEFAULT_EMPLOYMENT_WORK_RULE),
+    });
+
+  if (insertError) throw new Error(insertError.message);
+}
+
+export async function listEmploymentWorkRules(
+  tenantId: string
+): Promise<EmploymentWorkRule[]> {
+  await ensureDefaultEmploymentWorkRule(tenantId);
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_employment_work_rule")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("group_key")
+    .order("staff_type", { ascending: true, nullsFirst: true });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) =>
+    mapEmploymentWorkRuleRow(row as Record<string, unknown>)
+  );
+}
+
+export async function getEmploymentWorkRule(
+  tenantId: string,
+  ruleId: string
+): Promise<EmploymentWorkRule | null> {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_employment_work_rule")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", ruleId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
+}
+
+export async function findEmploymentWorkRuleByScope(
+  tenantId: string,
+  groupKey: string,
+  staffType: StaffType | null
+): Promise<EmploymentWorkRule | null> {
+  await ensureDefaultEmploymentWorkRule(tenantId);
+  const supabase = getDbClient();
+  let query = supabase
+    .from("m_employment_work_rule")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("group_key", groupKey ?? "");
+
+  if (staffType) {
+    query = query.eq("staff_type", staffType);
+  } else {
+    query = query.is("staff_type", null);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
+}
+
+export async function upsertEmploymentWorkRule(
+  tenantId: string,
+  input: EmploymentWorkRuleInput,
+  updatedBy?: string,
+  ruleId?: string
+): Promise<EmploymentWorkRule> {
+  const supabase = getDbClient();
+  const payload = buildEmploymentWorkRuleDbPayload(input, updatedBy);
+
+  if (ruleId) {
+    const { data, error } = await supabase
+      .from("m_employment_work_rule")
+      .update(payload)
+      .eq("tenant_id", tenantId)
+      .eq("id", ruleId)
+      .select("*")
+      .single();
+
+    if (error) throw new Error(error.message);
+    return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
+  }
+
+  const existing = await findEmploymentWorkRuleByScope(
+    tenantId,
+    input.groupKey,
+    input.staffType
+  );
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("m_employment_work_rule")
+      .update(payload)
+      .eq("tenant_id", tenantId)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error) throw new Error(error.message);
+    return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
+  }
+
+  const { data, error } = await supabase
+    .from("m_employment_work_rule")
+    .insert({ tenant_id: tenantId, ...payload })
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
 }

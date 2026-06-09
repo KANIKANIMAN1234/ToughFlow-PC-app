@@ -320,6 +320,40 @@ export interface FolderSettings {
   subfolderNames: string[];
 }
 
+export type StaffType =
+  | "unclassified"
+  | "full_time"
+  | "contract"
+  | "temporary"
+  | "part_time";
+
+export type PrescribedWorkDaysType = "unset" | "week" | "year";
+
+export interface StaffProfile {
+  lastName: string;
+  firstName: string;
+  email?: string;
+  phone?: string;
+  birthDate?: string;
+  staffCode?: string;
+  staffType: StaffType;
+  hourlyWage?: number | null;
+  prescribedWorkDaysType?: PrescribedWorkDaysType;
+  prescribedWorkHours: number;
+  prescribedWorkMinutes: number;
+  transportationAllowance?: number | null;
+  joinDate?: string;
+  remark1?: string;
+  remark2?: string;
+  remark3?: string;
+  tags?: string;
+}
+
+export interface StaffInput extends StaffProfile {
+  role: UserRole;
+  password?: string;
+}
+
 export interface TenantUser {
   id: string;
   name: string;
@@ -329,7 +363,43 @@ export interface TenantUser {
   lineUserId?: string;
 }
 
+export interface TenantStaff extends TenantUser, StaffProfile {}
+
 export interface PartnerShareSettings {
   defaultMethod: PartnerDefaultMethod;
   partners: TenantUser[];
+}
+
+export type EmploymentScheduledCalcType = "daily";
+
+export type EmploymentOvertimeCalcType = "greater_of_day_or_week";
+
+export interface EmploymentWorkRuleInput {
+  groupKey: string;
+  staffType: StaffType | null;
+  scheduledCalcType: EmploymentScheduledCalcType;
+  scheduledLimitHours: number;
+  scheduledLimitMinutes: number;
+  overtimeRatePercent: number;
+  overtimeCalcType: EmploymentOvertimeCalcType;
+  overtimeDayThresholdHours: number;
+  overtimeDayThresholdMinutes: number;
+  overtimeWeekThresholdHours: number;
+  overtimeWeekThresholdMinutes: number;
+  deemedOvertimeEnabled: boolean;
+  deemedOvertimeHours: number;
+  deemedOvertimeMinutes: number;
+  excludeStatutoryHolidays: boolean;
+  lateNightRatePercent: number;
+  lateNightStartHour: number;
+  lateNightStartMinute: number;
+  lateNightEndHour: number;
+  lateNightEndMinute: number;
+  includeEarlyMorningInLateNight: boolean;
+}
+
+export interface EmploymentWorkRule extends EmploymentWorkRuleInput {
+  id: string;
+  tenantId: string;
+  updatedAt: string;
 }

@@ -6,12 +6,14 @@ import { FolderDesignPanel } from "@/components/admin/FolderDesignPanel";
 import { MasterManager } from "@/components/admin/MasterManager";
 import { PartnerSharePanel } from "@/components/admin/PartnerSharePanel";
 import { PermissionManager } from "@/components/admin/PermissionManager";
-import { UserRoleManager } from "@/components/admin/UserRoleManager";
+import { EmploymentSettingsPanel } from "@/components/admin/EmploymentSettingsPanel";
+import { StaffManager } from "@/components/admin/StaffManager";
 import { usePermissionGuard } from "@/hooks/usePermissionGuard";
 
 const TABS = [
   { id: "masters", label: "マスタ管理" },
-  { id: "users", label: "ユーザー管理" },
+  { id: "users", label: "スタッフ管理" },
+  { id: "employment", label: "就業設定" },
   { id: "folder", label: "フォルダ設計" },
   { id: "permissions", label: "権限管理" },
   { id: "partner", label: "パートナー共有" },
@@ -44,7 +46,8 @@ export default function SettingsPage() {
         ))}
       </div>
       {activeTab === "masters" && <MasterManager />}
-      {activeTab === "users" && <UserRoleManager />}
+      {activeTab === "users" && <StaffManager />}
+      {activeTab === "employment" && <EmploymentSettingsPanel />}
       {activeTab === "folder" && <FolderDesignPanel />}
       {activeTab === "permissions" && <PermissionManager />}
       {activeTab === "partner" && <PartnerSharePanel />}
