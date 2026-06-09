@@ -371,7 +371,7 @@ export async function listCustomerOptions(
   const supabase = getDbClient();
   const { data, error } = await supabase
     .from("m_customer")
-    .select("id, name")
+    .select("id, name, address")
     .eq("tenant_id", tenantId)
     .order("name");
 
@@ -379,6 +379,7 @@ export async function listCustomerOptions(
   return (data ?? []).map((row) => ({
     id: row.id as string,
     name: row.name as string,
+    address: (row.address as string | null) ?? undefined,
   }));
 }
 
@@ -434,6 +435,12 @@ export async function createProjectWithAssignments(
       name: input.name.trim(),
       status: "active",
       work_start_date: workStartDate,
+      site_address: input.address?.trim() || null,
+      client_contact_name: input.clientContactName?.trim() || null,
+      client_contact_title: input.clientContactTitle?.trim() || null,
+      client_contact_phone: input.clientContactPhone?.trim() || null,
+      client_contact_email: input.clientContactEmail?.trim() || null,
+      project_summary: input.projectSummary?.trim() || null,
     })
     .select(
       "id, tenant_id, name, status, sales_amount, estimated_amount, gross_margin_rate, m_customer(name, address)"

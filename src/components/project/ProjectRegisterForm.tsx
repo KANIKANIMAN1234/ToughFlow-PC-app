@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { VoiceInputTextarea } from "@/components/ui/VoiceInputTextarea";
 import { ROLE_LABELS } from "@/lib/permissions/defaults";
+import {
+  applyParsedProjectEmail,
+  customerDisplayName,
+} from "@/lib/project/register-helpers";
 import type {
   AssignableUser,
   CustomerOption,
@@ -39,14 +44,26 @@ function createAssignmentRow(
 const selectClassName =
   "w-full rounded-xl border border-surface-border bg-white px-3 py-2.5 text-body text-apple-text focus-apple";
 
+const textareaClassName =
+  "w-full rounded-xl border border-surface-border bg-white px-3 py-2.5 text-body text-apple-text focus-apple min-h-[120px]";
+
 export function ProjectRegisterForm() {
   const router = useRouter();
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [assignees, setAssignees] = useState<AssignableUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [parsingEmail, setParsingEmail] = useState(false);
+  const [emailPasteText, setEmailPasteText] = useState("");
   const [name, setName] = useState("");
   const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [address, setAddress] = useState("");
+  const [clientContactName, setClientContactName] = useState("");
+  const [clientContactTitle, setClientContactTitle] = useState("");
+  const [clientContactPhone, setClientContactPhone] = useState("");
+  const [clientContactEmail, setClientContactEmail] = useState("");
+  const [projectSummary, setProjectSummary] = useState("");
   const [workStartDate, setWorkStartDate] = useState(todayISO());
   const [assignmentRows, setAssignmentRows] = useState<AssignmentRow[]>([
     createAssignmentRow("main"),
@@ -60,13 +77,63 @@ export function ProjectRegisterForm() {
       .then((data) => {
         setCustomers(data.customers);
         setAssignees(data.assignees);
-        if (data.customers[0]) setCustomerId(data.customers[0].id);
+        if (data.customers[0]) {
+          setCustomerId(data.customers[0].id);
+          setCustomerName(data.customers[0].name);
+          setAddress(data.customers[0].address ?? "");
+        }
       })
       .catch((e) => {
         alert(e instanceof Error ? e.message : "データの取得に失敗しました");
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleCustomerChange = useCallback(
+    (id: string) => {
+      setCustomerId(id);
+      const customer = customers.find((c) => c.id === id);
+      if (customer) {
+        setCustomerName(customer.name);
+        setAddress(customer.address ?? "");
+      }
+    },
+    [customers]
+  );
+
+  async function handleParseEmail() {
+    if (!emailPasteText.trim()) {
+      alert("メール本文を貼り付けてください");
+      return;
+    }
+    setParsingEmail(true);
+    try {
+      const { parsed } = await api.post<{ parsed: import("@/lib/types").ParsedProjectEmail }>(
+        "/api/projects/parse-email",
+        { emailText: emailPasteText }
+      );
+      const applied = applyParsedProjectEmail(parsed, customers);
+      if (applied.name) setName(applied.name);
+      if (applied.customerId) handleCustomerChange(applied.customerId);
+      if (applied.customerName) setCustomerName(applied.customerName);
+      if (applied.address) setAddress(applied.address);
+      if (applied.clientContactName) setClientContactName(applied.clientContactName);
+      if (applied.clientContactTitle) setClientContactTitle(applied.clientContactTitle);
+      if (applied.clientContactPhone) setClientContactPhone(applied.clientContactPhone);
+      if (applied.clientContactEmail) setClientContactEmail(applied.clientContactEmail);
+      if (applied.projectSummary) setProjectSummary(applied.projectSummary);
+      if (applied.workStartDate) setWorkStartDate(applied.workStartDate);
+      if (!applied.customerId && applied.customerName) {
+        alert(
+          `顧客名「${applied.customerName}」に一致するマスタが見つかりませんでした。顧客（マスタ）を手動で選択してください。`
+        );
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "メール解析に失敗しました");
+    } finally {
+      setParsingEmail(false);
+    }
+  }
 
   function updateAssignmentRow(
     key: string,
@@ -109,6 +176,12 @@ export function ProjectRegisterForm() {
         name,
         customerId,
         workStartDate,
+        address,
+        clientContactName,
+        clientContactTitle,
+        clientContactPhone,
+        clientContactEmail,
+        projectSummary,
         assignments: assignmentRows.map((row) => ({
           userId: row.userId,
           assignmentRole: row.assignmentRole,
@@ -136,6 +209,26 @@ export function ProjectRegisterForm() {
 
   return (
     <div className="space-y-6">
+      <Card title="メールから取込">
+        <p className="mb-3 text-caption text-apple-glyph">
+          お客様から届いたメール本文を貼り付けて「AIで解析」を押すと、各項目へ自動反映します。
+        </p>
+        <textarea
+          value={emailPasteText}
+          onChange={(e) => setEmailPasteText(e.target.value)}
+          placeholder="メール本文をここに貼り付け…"
+          className={`${textareaClassName} mb-3`}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={parsingEmail || !emailPasteText.trim()}
+          onClick={handleParseEmail}
+        >
+          {parsingEmail ? "解析中…" : "AIで解析"}
+        </Button>
+      </Card>
+
       <Card title="案件情報">
         <div className="grid gap-4 md:grid-cols-2">
           <Input
@@ -145,10 +238,12 @@ export function ProjectRegisterForm() {
             placeholder="例: ガンドリル搬入"
           />
           <label className="block space-y-1.5">
-            <span className="text-caption font-medium text-apple-text">顧客</span>
+            <span className="text-caption font-medium text-apple-text">
+              顧客（マスタ）
+            </span>
             <select
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
+              onChange={(e) => handleCustomerChange(e.target.value)}
               className={selectClassName}
             >
               {customers.length === 0 ? (
@@ -163,6 +258,44 @@ export function ProjectRegisterForm() {
             </select>
           </label>
           <Input
+            label="顧客名"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            hint={
+              customerId
+                ? `マスタ: ${customerDisplayName(customers, customerId)}`
+                : undefined
+            }
+          />
+          <Input
+            label="住所"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <Input
+            label="担当者氏名"
+            value={clientContactName}
+            onChange={(e) => setClientContactName(e.target.value)}
+            placeholder="お客様側の担当者"
+          />
+          <Input
+            label="役職"
+            value={clientContactTitle}
+            onChange={(e) => setClientContactTitle(e.target.value)}
+          />
+          <Input
+            label="連絡先"
+            value={clientContactPhone}
+            onChange={(e) => setClientContactPhone(e.target.value)}
+            placeholder="電話番号"
+          />
+          <Input
+            label="メールアドレス"
+            type="email"
+            value={clientContactEmail}
+            onChange={(e) => setClientContactEmail(e.target.value)}
+          />
+          <Input
             label="作業開始日"
             type="date"
             value={workStartDate}
@@ -170,12 +303,22 @@ export function ProjectRegisterForm() {
             hint="Driveフォルダ名に使用します"
           />
         </div>
+        <div className="mt-4">
+          <VoiceInputTextarea
+            label="案件概要"
+            value={projectSummary}
+            onChange={setProjectSummary}
+            placeholder="依頼内容・作業概要（電話メモは音声入力→AI整形が利用できます）"
+            rows={5}
+            formatContext="project_summary"
+            autoFormatAfterRecord
+          />
+        </div>
       </Card>
 
       <Card title="担当者割り当て">
         <p className="mb-4 text-caption text-apple-glyph">
-          管理者・部長・現場スタッフなど全スタッフから担当者を選び、メインまたはサブとして割り当てます。Google
-          Drive フォルダが作成され、割り当てられたスタッフが案件を閲覧できます。
+          管理者・部長・現場スタッフなど全スタッフから担当者を選び、メインまたはサブとして割り当てます。
         </p>
         {assignees.length === 0 ? (
           <p className="text-caption text-apple-glyph">
