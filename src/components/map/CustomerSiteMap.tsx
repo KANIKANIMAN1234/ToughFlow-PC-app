@@ -26,6 +26,10 @@ const MAP_ID =
 const DEFAULT_CENTER = { lat: 36.1323, lng: 139.6014 };
 const DEFAULT_ZOOM = 10;
 
+/** 微調整ボタン1回あたりの移動量（約10m） */
+const NUDGE_LAT = 0.00009;
+const NUDGE_LNG = 0.00011;
+
 function hasCoords(
   marker: MapMarker
 ): marker is MapMarker & { lat: number; lng: number } {
@@ -93,7 +97,6 @@ function GoogleMapsLoadGate({ children }: { children: React.ReactNode }) {
   return <div className="flex h-full flex-col">{children}</div>;
 }
 
-/** Google Maps は親の明示高さが必要なため、ResizeObserver で px 指定する */
 function MapViewport({ children }: { children: ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
@@ -184,6 +187,139 @@ function MapBoundsFitter({
   return null;
 }
 
+/** 編集モード中: 地図クリックでピン位置を移動 */
+function MapClickPlacer({
+  active,
+  onPlace,
+}: {
+  active: boolean;
+  onPlace: (pos: google.maps.LatLngLiteral) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !active) return;
+    const listener = map.addListener(
+      "click",
+      (e: google.maps.MapMouseEvent) => {
+        const latLng = e.latLng;
+        if (!latLng) return;
+        onPlace({ lat: latLng.lat(), lng: latLng.lng() });
+      }
+    );
+    return () => listener.remove();
+  }, [map, active, onPlace]);
+
+  return null;
+}
+
+function LocationEditBar({
+  customerName,
+  position,
+  saving,
+  saveError,
+  onNudge,
+  onSave,
+  onCancel,
+}: {
+  customerName: string;
+  position: { lat: number; lng: number };
+  saving: boolean;
+  saveError: string | null;
+  onNudge: (delta: { lat: number; lng: number }) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="pointer-events-auto absolute inset-x-4 bottom-4 z-20 mx-auto max-w-lg rounded-xl border border-blue-200 bg-white p-4 shadow-lg">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-blue-900">
+            位置修正モード — {customerName}
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            青い丸をドラッグするか、地図をクリックして位置を指定してください。
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800">
+          編集中
+        </span>
+      </div>
+
+      <p className="mb-3 font-mono text-[11px] text-gray-500">
+        {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
+      </p>
+
+      <div className="mb-3 flex items-center justify-center gap-1">
+        <span className="mr-2 text-xs text-gray-500">微調整</span>
+        <button
+          type="button"
+          aria-label="北へ移動"
+          className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+          disabled={saving}
+          onClick={() => onNudge({ lat: NUDGE_LAT, lng: 0 })}
+        >
+          ↑
+        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            aria-label="西へ移動"
+            className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+            disabled={saving}
+            onClick={() => onNudge({ lat: 0, lng: -NUDGE_LNG })}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            aria-label="東へ移動"
+            className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+            disabled={saving}
+            onClick={() => onNudge({ lat: 0, lng: NUDGE_LNG })}
+          >
+            →
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-label="南へ移動"
+          className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+          disabled={saving}
+          onClick={() => onNudge({ lat: -NUDGE_LAT, lng: 0 })}
+        >
+          ↓
+        </button>
+      </div>
+
+      {saveError && (
+        <p className="mb-2 text-xs text-red-600" role="alert">
+          {saveError}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="flex-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          disabled={saving}
+          onClick={onSave}
+        >
+          {saving ? "保存中…" : "この位置で保存"}
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          disabled={saving}
+          onClick={onCancel}
+        >
+          キャンセル
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   enabled: boolean;
 };
@@ -243,18 +379,33 @@ export function CustomerSiteMap({ enabled }: Props) {
 
   const selectMarker = useCallback(
     (id: string) => {
-      if (editingId && editingId !== id) return;
-      clearEditState();
+      if (editingId) return;
       setSelectedId(id);
     },
-    [clearEditState, editingId]
+    [editingId]
   );
 
   const startEdit = useCallback((marker: ResolvedMapMarker) => {
     setEditingId(marker.id);
+    setSelectedId(marker.id);
     setDraftPos({ lat: marker.lat, lng: marker.lng });
     setSaveError(null);
   }, []);
+
+  const updateDraftPos = useCallback((pos: google.maps.LatLngLiteral) => {
+    setDraftPos({ lat: pos.lat, lng: pos.lng });
+  }, []);
+
+  const nudgeDraftPos = useCallback(
+    (delta: { lat: number; lng: number }) => {
+      setDraftPos((prev) =>
+        prev
+          ? { lat: prev.lat + delta.lat, lng: prev.lng + delta.lng }
+          : prev
+      );
+    },
+    []
+  );
 
   const handleSave = useCallback(async () => {
     if (!editingId || !draftPos) return;
@@ -281,13 +432,13 @@ export function CustomerSiteMap({ enabled }: Props) {
     }
   }, [clearEditState, draftPos, editingId]);
 
+  const handleCancelEdit = useCallback(() => {
+    clearEditState();
+  }, [clearEditState]);
+
   const selected = resolved.find((m) => m.id === selectedId) ?? null;
-  const infoPosition =
-    selected && editingId === selected.id && draftPos
-      ? draftPos
-      : selected
-        ? { lat: selected.lat, lng: selected.lng }
-        : null;
+  const editingMarker = resolved.find((m) => m.id === editingId) ?? null;
+  const showInfoWindow = selected && editingId == null;
 
   if (isLoading && !data) {
     return <TableSkeleton rows={6} cols={1} />;
@@ -312,10 +463,13 @@ export function CustomerSiteMap({ enabled }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden ring-1 ring-surface-border">
+    <div className="relative flex h-full flex-col overflow-hidden ring-1 ring-surface-border">
       <MapViewport>
         <MapResizeHandler />
         <MapBoundsFitter markers={resolved} paused={editingId != null} />
+        {editingId != null && (
+          <MapClickPlacer active onPlace={updateDraftPos} />
+        )}
         {resolved.map((marker) => {
           const isEditing = editingId === marker.id;
           const position =
@@ -329,10 +483,15 @@ export function CustomerSiteMap({ enabled }: Props) {
               position={position}
               anchorPoint={AdvancedMarkerAnchorPoint.BOTTOM_CENTER}
               draggable={isEditing}
+              onDrag={(e) => {
+                const latLng = e.latLng;
+                if (!latLng) return;
+                updateDraftPos({ lat: latLng.lat(), lng: latLng.lng() });
+              }}
               onDragEnd={(e) => {
                 const latLng = e.latLng;
                 if (!latLng) return;
-                setDraftPos({ lat: latLng.lat(), lng: latLng.lng() });
+                updateDraftPos({ lat: latLng.lat(), lng: latLng.lng() });
               }}
               onClick={() => selectMarker(marker.id)}
             >
@@ -343,13 +502,10 @@ export function CustomerSiteMap({ enabled }: Props) {
             </AdvancedMarker>
           );
         })}
-        {selected && infoPosition && (
+        {showInfoWindow && selected && (
           <InfoWindow
-            position={infoPosition}
-            onCloseClick={() => {
-              clearEditState();
-              setSelectedId(null);
-            }}
+            position={{ lat: selected.lat, lng: selected.lng }}
+            onCloseClick={() => setSelectedId(null)}
           >
             <div className="max-w-xs space-y-2 text-sm text-gray-900">
               <p className="font-medium">{selected.customerName}</p>
@@ -361,7 +517,7 @@ export function CustomerSiteMap({ enabled }: Props) {
                   ))}
                 </ul>
               )}
-              {canEditLocation && editingId !== selected.id && (
+              {canEditLocation && (
                 <button
                   type="button"
                   className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
@@ -370,40 +526,22 @@ export function CustomerSiteMap({ enabled }: Props) {
                   位置を修正
                 </button>
               )}
-              {editingId === selected.id && (
-                <div className="space-y-2 border-t border-gray-200 pt-2">
-                  <p className="text-xs text-gray-600">
-                    ピンをドラッグして位置を調整し、保存してください。
-                  </p>
-                  {saveError && (
-                    <p className="text-xs text-red-600" role="alert">
-                      {saveError}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                      disabled={saving || !draftPos}
-                      onClick={() => void handleSave()}
-                    >
-                      {saving ? "保存中…" : "保存"}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      disabled={saving}
-                      onClick={clearEditState}
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </InfoWindow>
         )}
       </MapViewport>
+
+      {editingId && editingMarker && draftPos && (
+        <LocationEditBar
+          customerName={editingMarker.customerName}
+          position={draftPos}
+          saving={saving}
+          saveError={saveError}
+          onNudge={nudgeDraftPos}
+          onSave={() => void handleSave()}
+          onCancel={handleCancelEdit}
+        />
+      )}
     </div>
   );
 }
