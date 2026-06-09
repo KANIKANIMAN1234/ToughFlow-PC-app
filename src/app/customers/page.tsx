@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CustomerRegisterDialogs } from "@/components/customers/CustomerRegisterDialogs";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -19,7 +20,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const allowed = canAccess("project_list_other");
-  const { data, isLoading, error } = useApi<{ customers: Customer[] }>(
+  const { data, isLoading, error, mutate } = useApi<{ customers: Customer[] }>(
     user && allowed ? "/api/customers" : null
   );
 
@@ -63,14 +64,17 @@ export default function CustomersPage() {
             顧客データの取得に失敗しました: {error.message}
           </p>
         )}
-        <div className="mb-4 max-w-md">
-          <Input
-            type="search"
-            placeholder="顧客名・住所で検索"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="顧客検索"
-          />
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full max-w-md">
+            <Input
+              type="search"
+              placeholder="顧客名・住所で検索"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="顧客検索"
+            />
+          </div>
+          <CustomerRegisterDialogs onCompleted={() => void mutate()} />
         </div>
 
         {isLoading && !data ? (

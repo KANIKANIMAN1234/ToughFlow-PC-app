@@ -48,6 +48,17 @@ export interface Customer {
   hasMapPin: boolean;
 }
 
+export type CreateCustomerInput = {
+  name: string;
+  address?: string;
+};
+
+export type BulkCreateCustomersResult = {
+  created: number;
+  skipped: number;
+  errors: string[];
+};
+
 export interface Project {
   id: string;
   name: string;

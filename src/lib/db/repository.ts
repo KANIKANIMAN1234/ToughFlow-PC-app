@@ -50,6 +50,8 @@ import type {
   AttendanceStatus,
   AssignableUser,
   CreateProjectInput,
+  CreateCustomerInput,
+  BulkCreateCustomersResult,
   CustomerOption,
   SiteSurvey,
   SiteSurveyContent,
@@ -506,6 +508,102 @@ export async function listCustomers(tenantId: string): Promise<Customer[]> {
     projectCount: countByCustomer.get(row.id) ?? 0,
     hasMapPin: row.lat != null && row.lng != null,
   }));
+}
+
+function mapCustomerRow(row: {
+  id: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+}): Customer {
+  return {
+    id: row.id,
+    name: row.name,
+    address: row.address?.trim() ?? "",
+    lat: row.lat != null ? Number(row.lat) : undefined,
+    lng: row.lng != null ? Number(row.lng) : undefined,
+    projectCount: 0,
+    hasMapPin: row.lat != null && row.lng != null,
+  };
+}
+
+export async function createCustomer(
+  tenantId: string,
+  input: CreateCustomerInput
+): Promise<Customer> {
+  const name = input.name.trim();
+  if (!name) throw new Error("顧客名を入力してください");
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_customer")
+    .insert({
+      tenant_id: tenantId,
+      name,
+      address: input.address?.trim() || null,
+    })
+    .select("id, name, address, lat, lng")
+    .single();
+
+  if (error) throw new Error(formatDbError(error.message));
+  return mapCustomerRow(data as never);
+}
+
+export async function bulkCreateCustomers(
+  tenantId: string,
+  rows: CreateCustomerInput[]
+): Promise<BulkCreateCustomersResult> {
+  const supabase = createAdminClient();
+  const errors: string[] = [];
+  let skipped = 0;
+
+  const { data: existing, error: existingError } = await supabase
+    .from("m_customer")
+    .select("name")
+    .eq("tenant_id", tenantId);
+
+  if (existingError) throw new Error(formatDbError(existingError.message));
+
+  const existingNames = new Set(
+    (existing ?? []).map((row) => (row.name as string).trim().toLowerCase())
+  );
+  const batchNames = new Set<string>();
+  const toInsert: { tenant_id: string; name: string; address: string | null }[] =
+    [];
+
+  rows.forEach((row, index) => {
+    const lineNo = index + 1;
+    const name = row.name.trim();
+    if (!name) {
+      skipped += 1;
+      errors.push(`${lineNo}行目: 顧客名が空のためスキップしました`);
+      return;
+    }
+
+    const key = name.toLowerCase();
+    if (existingNames.has(key) || batchNames.has(key)) {
+      skipped += 1;
+      errors.push(`${lineNo}行目: 「${name}」は既に登録済みのためスキップしました`);
+      return;
+    }
+
+    batchNames.add(key);
+    toInsert.push({
+      tenant_id: tenantId,
+      name,
+      address: row.address?.trim() || null,
+    });
+  });
+
+  if (toInsert.length === 0) {
+    return { created: 0, skipped, errors };
+  }
+
+  const { error } = await supabase.from("m_customer").insert(toInsert);
+  if (error) throw new Error(formatDbError(error.message));
+
+  return { created: toInsert.length, skipped, errors };
 }
 
 export async function listMapMarkers(tenantId: string) {

@@ -1,32 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
-
-import { getUserAccessMap, listCustomers } from "@/lib/db/repository";
+import { formatDbError } from "@/lib/db/errors";
 import {
-  forbiddenResponse,
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
-import { isAccessGranted } from "@/lib/permissions/access";
+  bulkCreateCustomers,
+  createCustomer,
+  listCustomers,
+} from "@/lib/db/repository";
+import { parseCustomerCsv } from "@/lib/customer/parse-customer-csv";
+import { withAnyPermission, withPermission } from "@/lib/permissions/check";
+import type { CreateCustomerInput } from "@/lib/types";
 
-/** 地図 API と同様、admin 取得のため JWT コンテキストは不要 */
 export async function GET(request: NextRequest) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
-
-  try {
-    const accessMap = await getUserAccessMap(
-      session.tenantId,
-      session.id,
-      session.role
-    );
-    if (!isAccessGranted(accessMap.project_list_other ?? "deny")) {
-      return forbiddenResponse();
+  return withAnyPermission(request, ["project_list_other"], async ({ session }) => {
+    try {
+      const customers = await listCustomers(session.tenantId);
+      return NextResponse.json({ customers });
+    } catch (e) {
+      const message =
+        e instanceof Error ? formatDbError(e.message) : "取得に失敗しました";
+      return NextResponse.json({ error: message }, { status: 500 });
     }
+  });
+}
 
-    const customers = await listCustomers(session.tenantId);
-    return NextResponse.json({ customers });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "取得に失敗しました";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+export async function POST(request: NextRequest) {
+  return withPermission(request, "project_list_other", async ({ session }) => {
+    try {
+      const contentType = request.headers.get("content-type") ?? "";
+
+      if (contentType.includes("multipart/form-data")) {
+        const form = await request.formData();
+        const file = form.get("file");
+        if (!(file instanceof File) || file.size === 0) {
+          return NextResponse.json(
+            { error: "CSV ファイルを選択してください" },
+            { status: 400 }
+          );
+        }
+
+        const text = await file.text();
+        const rows = parseCustomerCsv(text);
+        if (rows.length === 0) {
+          return NextResponse.json(
+            { error: "CSV に登録対象の行がありません" },
+            { status: 400 }
+          );
+        }
+
+        const result = await bulkCreateCustomers(session.tenantId, rows);
+        return NextResponse.json(result, { status: 201 });
+      }
+
+      const body = (await request.json()) as CreateCustomerInput;
+      const customer = await createCustomer(session.tenantId, body);
+      return NextResponse.json({ customer }, { status: 201 });
+    } catch (e) {
+      const message =
+        e instanceof Error ? formatDbError(e.message) : "登録に失敗しました";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  });
 }

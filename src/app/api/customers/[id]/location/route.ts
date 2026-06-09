@@ -1,58 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formatDbError } from "@/lib/db/errors";
+import { updateCustomerLocation } from "@/lib/db/repository";
+import { withPermission } from "@/lib/permissions/check";
 
-import { getUserAccessMap, updateCustomerLocation } from "@/lib/db/repository";
-import {
-  forbiddenResponse,
-  getSessionFromRequest,
-  unauthorizedResponse,
-} from "@/lib/auth/session";
-import { isAccessGranted } from "@/lib/permissions/access";
+type Params = { params: Promise<{ id: string }> };
 
-const LOCATION_EDIT_ROLES = new Set(["admin", "office"]);
+export async function PATCH(request: NextRequest, { params }: Params) {
+  return withPermission(request, "project_list_other", async ({ session }) => {
+    try {
+      const { id } = await params;
+      const body = (await request.json()) as { lat?: number; lng?: number };
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = getSessionFromRequest(request);
-  if (!session) return unauthorizedResponse();
+      if (typeof body.lat !== "number" || typeof body.lng !== "number") {
+        return NextResponse.json(
+          { error: "座標（lat, lng）が不正です" },
+          { status: 400 }
+        );
+      }
 
-  if (!LOCATION_EDIT_ROLES.has(session.role)) {
-    return forbiddenResponse();
-  }
-
-  try {
-    const accessMap = await getUserAccessMap(
-      session.tenantId,
-      session.id,
-      session.role
-    );
-    if (!isAccessGranted(accessMap.project_list_other ?? "deny")) {
-      return forbiddenResponse();
+      await updateCustomerLocation(session.tenantId, id, body.lat, body.lng);
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      const message =
+        e instanceof Error ? formatDbError(e.message) : "保存に失敗しました";
+      return NextResponse.json({ error: message }, { status: 400 });
     }
-
-    const { id } = await params;
-    const body = (await request.json()) as { lat?: unknown; lng?: unknown };
-    const lat = Number(body.lat);
-    const lng = Number(body.lng);
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return NextResponse.json(
-        { error: "緯度・経度が不正です" },
-        { status: 400 }
-      );
-    }
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return NextResponse.json(
-        { error: "緯度・経度の範囲が不正です" },
-        { status: 400 }
-      );
-    }
-
-    await updateCustomerLocation(session.tenantId, id, lat, lng);
-    return NextResponse.json({ ok: true, lat, lng });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "保存に失敗しました";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  });
 }
