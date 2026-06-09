@@ -24,6 +24,14 @@ export function formatDateTime(date: string | Date) {
   });
 }
 
+export function formatTime(date: string | Date) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }

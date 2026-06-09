@@ -1,17 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Badge } from "@/components/ui/Badge";
+import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
-import {
-  PUNCH_LABELS,
-  PUNCH_SOURCE_LABELS,
-} from "@/lib/attendance/labels";
+import { groupAttendanceByDay } from "@/lib/attendance/group-by-day";
 import type { AttendanceHistoryEntry } from "@/lib/types";
-import { daysAgoISO, formatDate, formatDateTime, todayISO } from "@/lib/utils";
+import { daysAgoISO, formatDate, todayISO } from "@/lib/utils";
 
 type HistoryResponse = {
   punches: AttendanceHistoryEntry[];
@@ -34,6 +30,8 @@ function buildHistoryUrl(query: HistoryQuery) {
   return `/api/attendance/history?${params.toString()}`;
 }
 
+const EMPTY = "—";
+
 export function AttendanceHistoryView() {
   const [fromDate, setFromDate] = useState(daysAgoISO(30));
   const [toDate, setToDate] = useState(todayISO());
@@ -51,6 +49,7 @@ export function AttendanceHistoryView() {
   const canViewAll = data?.canViewAll ?? false;
   const punches = data?.punches ?? [];
   const users = data?.users ?? [];
+  const dayRows = useMemo(() => groupAttendanceByDay(punches), [punches]);
 
   function applyFilters() {
     setAppliedQuery({ fromDate, toDate, userId });
@@ -111,25 +110,23 @@ export function AttendanceHistoryView() {
 
       {isLoading ? (
         <TableSkeleton rows={8} cols={canViewAll ? 5 : 4} />
-      ) : punches.length === 0 ? (
+      ) : dayRows.length === 0 ? (
         <p className="text-body text-apple-glyph">該当する打刻履歴がありません</p>
       ) : (
         <DataTable
           columns={[
             { key: "workDate", label: "勤務日" },
             ...(canViewAll ? [{ key: "user", label: "氏名" }] : []),
-            { key: "punchType", label: "打刻種別" },
-            { key: "punchedAt", label: "打刻日時" },
-            { key: "source", label: "端末" },
+            { key: "clockIn", label: "出勤" },
+            { key: "clockOut", label: "退勤" },
+            { key: "breaks", label: "中抜け" },
           ]}
-          rows={punches.map((p) => ({
-            workDate: formatDate(p.workDate),
-            user: p.userName,
-            punchType: (
-              <Badge tone="info">{PUNCH_LABELS[p.punchType]}</Badge>
-            ),
-            punchedAt: formatDateTime(p.punchedAt),
-            source: PUNCH_SOURCE_LABELS[p.source],
+          rows={dayRows.map((row) => ({
+            workDate: formatDate(row.workDate),
+            user: row.userName,
+            clockIn: row.clockIn ?? EMPTY,
+            clockOut: row.clockOut ?? EMPTY,
+            breaks: row.breaks || EMPTY,
           }))}
         />
       )}
