@@ -291,7 +291,8 @@ export async function listProjects(
 }
 
 export async function listCustomers(tenantId: string): Promise<Customer[]> {
-  const supabase = getDbClient();
+  // 地図マーカー（listMapMarkers）と同様、権限・tenant_id は API 層で担保し admin 取得
+  const supabase = createAdminClient();
 
   const { data: customers, error: customerError } = await supabase
     .from("m_customer")

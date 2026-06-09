@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -9,14 +10,23 @@ import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { Customer } from "@/lib/types";
 
 export default function CustomersPage() {
   const { user, authLoading } = useAuthGuard();
+  const { canAccess, loading: permLoading } = usePermissions();
+  const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useApi<{ customers: Customer[] }>(
-    user ? "/api/customers" : null
+  const allowed = canAccess("project_list_other");
+  const { data, isLoading, error } = useApi<{ customers: Customer[] }>(
+    user && allowed ? "/api/customers" : null
   );
+
+  useEffect(() => {
+    if (authLoading || permLoading) return;
+    if (user && !allowed) router.replace("/home");
+  }, [user, authLoading, permLoading, allowed, router]);
 
   const filtered = useMemo(() => {
     const customers = data?.customers ?? [];
@@ -29,7 +39,15 @@ export default function CustomersPage() {
     );
   }, [data?.customers, query]);
 
-  if (authLoading || !user) {
+  if (authLoading || permLoading || !user) {
+    return (
+      <AppShell title="顧客リスト" breadcrumbs={["ToughFlow", "顧客リスト"]}>
+        <TableSkeleton rows={6} cols={4} />
+      </AppShell>
+    );
+  }
+
+  if (!allowed) {
     return (
       <AppShell title="顧客リスト" breadcrumbs={["ToughFlow", "顧客リスト"]}>
         <TableSkeleton rows={6} cols={4} />
@@ -40,6 +58,11 @@ export default function CustomersPage() {
   return (
     <AppShell title="顧客リスト" breadcrumbs={["ToughFlow", "顧客リスト"]}>
       <Card title="顧客リスト">
+        {error && (
+          <p className="mb-4 text-caption text-red-600" role="alert">
+            顧客データの取得に失敗しました: {error.message}
+          </p>
+        )}
         <div className="mb-4 max-w-md">
           <Input
             type="search"
