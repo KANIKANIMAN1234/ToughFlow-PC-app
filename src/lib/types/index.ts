@@ -451,6 +451,10 @@ export interface Agreement36FiscalInput {
   notifyCustom: boolean;
   notifyCustomUserId: string | null;
   notifyCustomEmail: string;
+  notifyEmployeeLine: boolean;
+  notifyAdminLine: boolean;
+  notifyCustomLine: boolean;
+  notifyCustomLineUserId: string | null;
 }
 
 export interface Agreement36Global extends Agreement36GlobalInput {

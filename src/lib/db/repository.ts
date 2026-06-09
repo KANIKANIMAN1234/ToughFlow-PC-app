@@ -2354,6 +2354,11 @@ function mapAgreement36FiscalRow(
     notifyCustom: row.notify_custom as boolean,
     notifyCustomUserId: (row.notify_custom_user_id as string | null) ?? null,
     notifyCustomEmail: (row.notify_custom_email as string | null) ?? "",
+    notifyEmployeeLine: (row.notify_employee_line as boolean | undefined) ?? false,
+    notifyAdminLine: (row.notify_admin_line as boolean | undefined) ?? false,
+    notifyCustomLine: (row.notify_custom_line as boolean | undefined) ?? false,
+    notifyCustomLineUserId:
+      (row.notify_custom_line_user_id as string | null) ?? null,
     updatedAt: row.updated_at as string,
   };
 }
@@ -2404,6 +2409,10 @@ function buildAgreement36FiscalPayload(
     notify_custom: input.notifyCustom,
     notify_custom_user_id: input.notifyCustomUserId,
     notify_custom_email: input.notifyCustomEmail?.trim() || null,
+    notify_employee_line: input.notifyEmployeeLine,
+    notify_admin_line: input.notifyAdminLine,
+    notify_custom_line: input.notifyCustomLine,
+    notify_custom_line_user_id: input.notifyCustomLineUserId,
     updated_at: new Date().toISOString(),
     updated_by: updatedBy ?? null,
   };

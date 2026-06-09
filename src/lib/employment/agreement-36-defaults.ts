@@ -35,6 +35,10 @@ export const DEFAULT_AGREEMENT_36_FISCAL: Agreement36FiscalInput = {
   notifyCustom: false,
   notifyCustomUserId: null,
   notifyCustomEmail: "",
+  notifyEmployeeLine: false,
+  notifyAdminLine: false,
+  notifyCustomLine: false,
+  notifyCustomLineUserId: null,
 };
 
 export function currentFiscalYear(startMonth = 4): number {

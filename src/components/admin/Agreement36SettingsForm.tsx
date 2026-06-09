@@ -427,62 +427,124 @@ export function Agreement36SettingsForm() {
             <p className="mb-4 text-body font-medium text-apple-text">
               36協定アラート通知先設定
             </p>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 text-caption text-apple-text">
-                <input
-                  type="checkbox"
-                  checked={fiscalForm.notifyEmployee}
-                  onChange={(e) =>
-                    patchFiscal({ notifyEmployee: e.target.checked })
-                  }
-                />
-                従業員にメール通知
-              </label>
-              <label className="flex items-center gap-3 text-caption text-apple-text">
-                <input
-                  type="checkbox"
-                  checked={fiscalForm.notifyAdmin}
-                  onChange={(e) => patchFiscal({ notifyAdmin: e.target.checked })}
-                />
-                管理者にメール通知
-              </label>
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <p className="text-caption font-medium text-apple-glyph">メール通知</p>
                 <label className="flex items-center gap-3 text-caption text-apple-text">
                   <input
                     type="checkbox"
-                    checked={fiscalForm.notifyCustom}
+                    checked={fiscalForm.notifyEmployee}
                     onChange={(e) =>
-                      patchFiscal({ notifyCustom: e.target.checked })
+                      patchFiscal({ notifyEmployee: e.target.checked })
                     }
                   />
-                  カスタマイズメール通知
+                  従業員にメール通知
                 </label>
-                <select
-                  value={fiscalForm.notifyCustomUserId ?? ""}
-                  disabled={!fiscalForm.notifyCustom}
-                  onChange={(e) =>
-                    patchFiscal({
-                      notifyCustomUserId: e.target.value || null,
-                    })
-                  }
-                  className="focus-apple min-w-[12rem] rounded-xl border border-surface-border bg-white px-3 py-2 text-caption"
-                >
-                  <option value="">スタッフを選択</option>
-                  {(staffData?.staff ?? []).map((staff) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.name}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  placeholder="メールアドレス"
-                  value={fiscalForm.notifyCustomEmail}
-                  disabled={!fiscalForm.notifyCustom}
-                  onChange={(e) =>
-                    patchFiscal({ notifyCustomEmail: e.target.value })
-                  }
-                  className="min-w-[16rem] flex-1"
-                />
+                <label className="flex items-center gap-3 text-caption text-apple-text">
+                  <input
+                    type="checkbox"
+                    checked={fiscalForm.notifyAdmin}
+                    onChange={(e) =>
+                      patchFiscal({ notifyAdmin: e.target.checked })
+                    }
+                  />
+                  管理者にメール通知
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-3 text-caption text-apple-text">
+                    <input
+                      type="checkbox"
+                      checked={fiscalForm.notifyCustom}
+                      onChange={(e) =>
+                        patchFiscal({ notifyCustom: e.target.checked })
+                      }
+                    />
+                    カスタマイズメール通知
+                  </label>
+                  <select
+                    value={fiscalForm.notifyCustomUserId ?? ""}
+                    disabled={!fiscalForm.notifyCustom}
+                    onChange={(e) =>
+                      patchFiscal({
+                        notifyCustomUserId: e.target.value || null,
+                      })
+                    }
+                    className="focus-apple min-w-[12rem] rounded-xl border border-surface-border bg-white px-3 py-2 text-caption"
+                  >
+                    <option value="">スタッフを選択</option>
+                    {(staffData?.staff ?? []).map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    placeholder="メールアドレス"
+                    value={fiscalForm.notifyCustomEmail}
+                    disabled={!fiscalForm.notifyCustom}
+                    onChange={(e) =>
+                      patchFiscal({ notifyCustomEmail: e.target.value })
+                    }
+                    className="min-w-[16rem] flex-1"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-surface-border pt-4">
+                <p className="text-caption font-medium text-apple-glyph">LINE通知</p>
+                <label className="flex items-center gap-3 text-caption text-apple-text">
+                  <input
+                    type="checkbox"
+                    checked={fiscalForm.notifyEmployeeLine}
+                    onChange={(e) =>
+                      patchFiscal({ notifyEmployeeLine: e.target.checked })
+                    }
+                  />
+                  従業員にLINE通知
+                </label>
+                <label className="flex items-center gap-3 text-caption text-apple-text">
+                  <input
+                    type="checkbox"
+                    checked={fiscalForm.notifyAdminLine}
+                    onChange={(e) =>
+                      patchFiscal({ notifyAdminLine: e.target.checked })
+                    }
+                  />
+                  管理者にLINE通知
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-3 text-caption text-apple-text">
+                    <input
+                      type="checkbox"
+                      checked={fiscalForm.notifyCustomLine}
+                      onChange={(e) =>
+                        patchFiscal({ notifyCustomLine: e.target.checked })
+                      }
+                    />
+                    カスタマイズLINE通知
+                  </label>
+                  <select
+                    value={fiscalForm.notifyCustomLineUserId ?? ""}
+                    disabled={!fiscalForm.notifyCustomLine}
+                    onChange={(e) =>
+                      patchFiscal({
+                        notifyCustomLineUserId: e.target.value || null,
+                      })
+                    }
+                    className="focus-apple min-w-[12rem] rounded-xl border border-surface-border bg-white px-3 py-2 text-caption"
+                  >
+                    <option value="">スタッフを選択</option>
+                    {(staffData?.staff ?? []).map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name}
+                        {staff.lineUserId ? "" : "（LINE未連携）"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-caption text-apple-glyph">
+                  LINE通知はスタッフのLINE連携（line_user_id）が登録されている場合に送信されます。
+                </p>
               </div>
             </div>
           </div>
