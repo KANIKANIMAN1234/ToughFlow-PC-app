@@ -14,6 +14,79 @@ export function sanitizeDriveName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "_").trim() || "無題";
 }
 
+/** サービスアカウントは共有ドライブ以外にファイルを保存できない */
+export function formatDriveApiError(error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  if (msg.includes("Service Accounts do not have storage quota")) {
+    return (
+      "Google ドライブの保存先がマイドライブになっています。" +
+      "管理設定の「Drive ルートフォルダ ID」を Google 共有ドライブ（Shared Drive）内のフォルダに変更し、" +
+      "サービスアカウントを共有ドライブのメンバー（コンテンツ管理者以上）に追加してください。"
+    );
+  }
+  if (msg.includes("File not found") || msg.includes("notFound")) {
+    return "指定された Google ドライブフォルダが見つかりません。ルートフォルダ ID を確認してください。";
+  }
+  if (msg.includes("Insufficient permissions") || msg.includes("403")) {
+    return "Google ドライブへのアクセス権がありません。サービスアカウントを共有ドライブのメンバーに追加してください。";
+  }
+  return msg;
+}
+
+type FolderDriveInfo = {
+  id: string;
+  name: string;
+  driveId: string | null;
+};
+
+async function getFolderDriveInfo(
+  drive: drive_v3.Drive,
+  folderId: string
+): Promise<FolderDriveInfo> {
+  const res = await drive.files.get({
+    fileId: folderId,
+    fields: "id, name, driveId",
+    supportsAllDrives: true,
+  });
+
+  return {
+    id: res.data.id ?? folderId,
+    name: res.data.name ?? folderId,
+    driveId: res.data.driveId ?? null,
+  };
+}
+
+async function assertSharedDriveFolder(
+  drive: drive_v3.Drive,
+  folderId: string,
+  label = "保存先フォルダ"
+): Promise<string> {
+  const info = await getFolderDriveInfo(drive, folderId);
+
+  if (!info.driveId) {
+    throw new Error(
+      `${label}「${info.name}」は Google 共有ドライブ（Shared Drive）内にありません。` +
+        "管理設定の Drive ルートフォルダ ID を共有ドライブ内のフォルダに変更してください。"
+    );
+  }
+
+  return info.driveId;
+}
+
+async function isFolderInSharedDrive(
+  drive: drive_v3.Drive,
+  folderId: string | null | undefined,
+  expectedDriveId: string
+): Promise<boolean> {
+  if (!folderId) return false;
+  try {
+    const info = await getFolderDriveInfo(drive, folderId);
+    return info.driveId === expectedDriveId;
+  } catch {
+    return false;
+  }
+}
+
 function escapeDriveQuery(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
@@ -59,19 +132,23 @@ async function createFolder(
   parentId: string,
   name: string
 ): Promise<string> {
-  const res = await drive.files.create({
-    requestBody: {
-      name: sanitizeDriveName(name),
-      mimeType: FOLDER_MIME,
-      parents: [parentId],
-    },
-    fields: "id",
-    supportsAllDrives: true,
-  });
+  try {
+    const res = await drive.files.create({
+      requestBody: {
+        name: sanitizeDriveName(name),
+        mimeType: FOLDER_MIME,
+        parents: [parentId],
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
 
-  const id = res.data.id;
-  if (!id) throw new Error(`Drive フォルダ作成に失敗: ${name}`);
-  return id;
+    const id = res.data.id;
+    if (!id) throw new Error(`Drive フォルダ作成に失敗: ${name}`);
+    return id;
+  } catch (e) {
+    throw new Error(formatDriveApiError(e));
+  }
 }
 
 export async function findOrCreateFolder(
@@ -113,7 +190,23 @@ export async function ensureProjectDriveFolders(
     return null;
   }
 
+  const rootDriveId = await assertSharedDriveFolder(
+    drive,
+    rootId,
+    "Drive ルートフォルダ"
+  );
+
   let customerFolderId = project.customerDriveFolderId;
+  if (!(await isFolderInSharedDrive(drive, customerFolderId, rootDriveId))) {
+    if (customerFolderId) {
+      console.warn(
+        "[drive] 顧客フォルダ ID が共有ドライブ外のため再作成します:",
+        customerFolderId
+      );
+    }
+    customerFolderId = null;
+  }
+
   if (project.customerId && !customerFolderId) {
     customerFolderId = await findOrCreateFolder(
       drive,
@@ -129,6 +222,16 @@ export async function ensureProjectDriveFolders(
 
   const parentForProject = customerFolderId ?? rootId;
   let projectFolderId = project.projectDriveFolderId;
+  if (!(await isFolderInSharedDrive(drive, projectFolderId, rootDriveId))) {
+    if (projectFolderId) {
+      console.warn(
+        "[drive] 案件フォルダ ID が共有ドライブ外のため再作成します:",
+        projectFolderId
+      );
+    }
+    projectFolderId = null;
+  }
+
   if (!projectFolderId) {
     const folderName = formatProjectFolderName(
       settings.projectNamePattern,
@@ -166,18 +269,24 @@ export async function uploadFileToDrive(
   const drive = await getDriveClient();
   if (!drive) return null;
 
-  const res = await drive.files.create({
-    requestBody: {
-      name: sanitizeDriveName(fileName),
-      parents: [parentFolderId],
-    },
-    media: {
-      mimeType,
-      body: Readable.from(data),
-    },
-    fields: "id",
-    supportsAllDrives: true,
-  });
+  try {
+    await assertSharedDriveFolder(drive, parentFolderId, "アップロード先フォルダ");
 
-  return res.data.id ?? null;
+    const res = await drive.files.create({
+      requestBody: {
+        name: sanitizeDriveName(fileName),
+        parents: [parentFolderId],
+      },
+      media: {
+        mimeType,
+        body: Readable.from(data),
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
+
+    return res.data.id ?? null;
+  } catch (e) {
+    throw new Error(formatDriveApiError(e));
+  }
 }
