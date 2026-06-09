@@ -4,12 +4,17 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions/defaults";
 import {
+  BIRTH_YEAR_OPTIONS,
+  daysInMonth,
+  JOIN_YEAR_OPTIONS,
+  MONTH_OPTIONS,
   PRESCRIBED_WORK_DAYS_OPTIONS,
   STAFF_TYPE_OPTIONS,
   WORK_HOUR_OPTIONS,
   WORK_MINUTE_OPTIONS,
 } from "@/lib/staff/constants";
 import type { StaffInput, TenantStaff } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 function parseDateParts(value?: string) {
   if (!value) return { year: "", month: "", day: "" };
@@ -29,53 +34,86 @@ function buildDateIso(year: string, month: string, day: string): string {
   return `${y}-${m}-${d}`;
 }
 
+function resolveYearOptions(base: number[], value?: string): number[] {
+  const year = Number(parseDateParts(value).year);
+  if (!year || base.includes(year)) return base;
+  return [year, ...base].sort((a, b) => b - a);
+}
+
 function DatePartsField({
   label,
   value,
   onChange,
+  yearOptions,
 }: {
   label: string;
   value?: string;
   onChange: (iso: string) => void;
+  yearOptions: number[];
 }) {
   const parts = parseDateParts(value);
+  const years = resolveYearOptions(yearOptions, value);
+  const maxDay = daysInMonth(Number(parts.year), Number(parts.month));
+  const dayOptions = Array.from({ length: maxDay }, (_, i) => i + 1);
+  const selectClass =
+    "focus-apple rounded-xl border border-surface-border bg-white px-3 py-2.5 text-body";
 
   function update(part: "year" | "month" | "day", next: string) {
     const merged = { ...parts, [part]: next };
+    if (merged.year && merged.month && merged.day) {
+      const limit = daysInMonth(Number(merged.year), Number(merged.month));
+      if (Number(merged.day) > limit) {
+        merged.day = String(limit);
+      }
+    }
     onChange(buildDateIso(merged.year, merged.month, merged.day));
   }
 
   return (
     <div className="space-y-1.5">
       <span className="text-caption font-medium text-apple-text">{label}</span>
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          placeholder="年"
+      <div className="flex flex-wrap items-center gap-2">
+        <select
           value={parts.year}
           onChange={(e) => update("year", e.target.value)}
-          className="focus-apple w-24 rounded-xl border border-surface-border px-3 py-2.5 text-body"
-        />
+          className={cn(selectClass, "w-28")}
+          aria-label={`${label} 年`}
+        >
+          <option value="">—</option>
+          {years.map((year) => (
+            <option key={year} value={String(year)}>
+              {year}
+            </option>
+          ))}
+        </select>
         <span className="text-caption text-apple-glyph">年</span>
-        <input
-          type="number"
-          placeholder="月"
-          min={1}
-          max={12}
+        <select
           value={parts.month}
           onChange={(e) => update("month", e.target.value)}
-          className="focus-apple w-16 rounded-xl border border-surface-border px-3 py-2.5 text-body"
-        />
+          className={cn(selectClass, "w-20")}
+          aria-label={`${label} 月`}
+        >
+          <option value="">—</option>
+          {MONTH_OPTIONS.map((month) => (
+            <option key={month} value={String(month)}>
+              {month}
+            </option>
+          ))}
+        </select>
         <span className="text-caption text-apple-glyph">月</span>
-        <input
-          type="number"
-          placeholder="日"
-          min={1}
-          max={31}
+        <select
           value={parts.day}
           onChange={(e) => update("day", e.target.value)}
-          className="focus-apple w-16 rounded-xl border border-surface-border px-3 py-2.5 text-body"
-        />
+          className={cn(selectClass, "w-20")}
+          aria-label={`${label} 日`}
+        >
+          <option value="">—</option>
+          {dayOptions.map((day) => (
+            <option key={day} value={String(day)}>
+              {day}
+            </option>
+          ))}
+        </select>
         <span className="text-caption text-apple-glyph">日</span>
       </div>
     </div>
@@ -214,6 +252,7 @@ export function StaffForm({
             label="生年月日"
             value={value.birthDate}
             onChange={(birthDate) => patch({ birthDate })}
+            yearOptions={BIRTH_YEAR_OPTIONS}
           />
 
           <Input
@@ -329,6 +368,7 @@ export function StaffForm({
             label="入社日"
             value={value.joinDate}
             onChange={(joinDate) => patch({ joinDate })}
+            yearOptions={JOIN_YEAR_OPTIONS}
           />
 
           <SelectField
