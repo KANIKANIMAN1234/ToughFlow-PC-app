@@ -2,6 +2,7 @@
 
 type Props = {
   name: string;
+  editing?: boolean;
 };
 
 /**
@@ -9,13 +10,23 @@ type Props = {
  * CSS transform は使わない（AdvancedMarker のアンカー計算と競合しズーム時に位置ずれするため）。
  * 下端中央の赤丸が地理座標に一致するよう、親の AdvancedMarker で BOTTOM_CENTER を指定する。
  */
-export function CustomerMapPin({ name }: Props) {
+export function CustomerMapPin({ name, editing = false }: Props) {
   return (
     <div className="flex w-max flex-col items-center">
-      <div className="max-w-[11rem] truncate rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-gray-900 shadow-md">
+      <div
+        className={`max-w-[11rem] truncate rounded-md border px-2.5 py-1 text-xs font-semibold shadow-md ${
+          editing
+            ? "border-blue-400 bg-blue-50 text-blue-900"
+            : "border-gray-200 bg-white text-gray-900"
+        }`}
+      >
         {name}
       </div>
-      <div className="mt-1 h-3 w-3 shrink-0 rounded-full border-2 border-white bg-red-600 shadow" />
+      <div
+        className={`mt-1 h-3 w-3 shrink-0 rounded-full border-2 border-white shadow ${
+          editing ? "bg-blue-600 ring-2 ring-blue-300" : "bg-red-600"
+        }`}
+      />
     </div>
   );
 }

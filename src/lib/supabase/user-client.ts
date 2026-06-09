@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { signSupabaseJwt } from "@/lib/supabase/jwt";
 import type { User } from "@/lib/types";
 
@@ -13,14 +14,18 @@ function readSupabaseAnonEnv() {
   return { url, key };
 }
 
-/** セッションユーザー向け Supabase クライアント（RLS 適用） */
+/** セッションユーザー向け Supabase クライアント（RLS 適用。JWT 未設定時は admin にフォールバック） */
 export async function createUserClient(user: User): Promise<SupabaseClient> {
-  const { url, key } = readSupabaseAnonEnv();
-  const accessToken = await signSupabaseJwt(user);
-  return createClient(url, key, {
-    global: {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  try {
+    const { url, key } = readSupabaseAnonEnv();
+    const accessToken = await signSupabaseJwt(user);
+    return createClient(url, key, {
+      global: {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  } catch {
+    return createAdminClient();
+  }
 }

@@ -1283,6 +1283,22 @@ export async function getProjectDriveInfo(
   };
 }
 
+export async function updateCustomerLocation(
+  tenantId: string,
+  customerId: string,
+  lat: number,
+  lng: number
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("m_customer")
+    .update({ lat, lng })
+    .eq("tenant_id", tenantId)
+    .eq("id", customerId);
+
+  if (error) throw new Error(error.message);
+}
+
 export async function updateCustomerDriveFolderId(
   tenantId: string,
   customerId: string,
