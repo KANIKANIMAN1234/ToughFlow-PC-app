@@ -208,15 +208,10 @@ export async function ensureProjectDriveFolders(
   }
 
   if (project.customerId && !customerFolderId) {
-    customerFolderId = await findOrCreateFolder(
-      drive,
-      rootId,
-      project.customerName
-    );
-    await updateCustomerDriveFolderId(
+    customerFolderId = await ensureCustomerDriveFolder(
       tenantId,
       project.customerId,
-      customerFolderId
+      project.customerName
     );
   }
 
@@ -256,6 +251,36 @@ export async function ensureProjectDriveFolders(
   }
 
   return { projectFolderId, subfolders };
+}
+
+/** ルート配下に顧客名フォルダを作成し m_customer.drive_folder_id を更新 */
+export async function ensureCustomerDriveFolder(
+  tenantId: string,
+  customerId: string,
+  customerName: string
+): Promise<string | null> {
+  if (!isDriveConfigured()) return null;
+
+  const drive = await getDriveClient();
+  if (!drive) return null;
+
+  const settings = await getFolderSettings(tenantId);
+  const rootId =
+    settings.driveRootFolderId || getDriveRootFolderIdFallback() || null;
+  if (!rootId) {
+    console.warn("[drive] ルートフォルダ ID が未設定です");
+    return null;
+  }
+
+  await assertSharedDriveFolder(drive, rootId, "Drive ルートフォルダ");
+
+  const customerFolderId = await findOrCreateFolder(
+    drive,
+    rootId,
+    customerName
+  );
+  await updateCustomerDriveFolderId(tenantId, customerId, customerFolderId);
+  return customerFolderId;
 }
 
 export async function uploadFileToDrive(

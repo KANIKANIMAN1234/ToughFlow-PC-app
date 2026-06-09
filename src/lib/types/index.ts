@@ -57,6 +57,9 @@ export type BulkCreateCustomersResult = {
   created: number;
   skipped: number;
   errors: string[];
+  createdCustomers: { id: string; name: string }[];
+  driveFoldersCreated?: number;
+  driveWarnings?: string[];
 };
 
 export interface Project {

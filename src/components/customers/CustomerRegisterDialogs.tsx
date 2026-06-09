@@ -75,10 +75,17 @@ export function CustomerRegisterDialogs({ onCompleted }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await api.post("/api/customers", { name, address });
+      const result = await api.post<{
+        driveWarning?: string;
+      }>("/api/customers", { name, address });
       resetNewForm();
       setNewOpen(false);
       await onCompleted();
+      if (result.driveWarning) {
+        alert(
+          `顧客は登録しましたが、Google Drive フォルダ作成に失敗しました:\n${result.driveWarning}`
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "登録に失敗しました");
     } finally {
@@ -227,7 +234,17 @@ export function CustomerRegisterDialogs({ onCompleted }: Props) {
                   {bulkResult.created}件を登録しました。
                   {bulkResult.skipped > 0 &&
                     ` ${bulkResult.skipped}件をスキップしました。`}
+                  {bulkResult.driveFoldersCreated != null &&
+                    bulkResult.driveFoldersCreated > 0 &&
+                    ` Google Drive に${bulkResult.driveFoldersCreated}件の顧客フォルダを作成しました。`}
                 </p>
+                {bulkResult.driveWarnings && bulkResult.driveWarnings.length > 0 && (
+                  <ul className="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5 text-amber-700">
+                    {bulkResult.driveWarnings.map((msg) => (
+                      <li key={msg}>Drive: {msg}</li>
+                    ))}
+                  </ul>
+                )}
                 {bulkResult.errors.length > 0 && (
                   <ul className="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5 text-red-600">
                     {bulkResult.errors.map((msg) => (

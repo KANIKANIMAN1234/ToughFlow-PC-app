@@ -6,6 +6,9 @@ import {
   listCustomers,
 } from "@/lib/db/repository";
 import { parseCustomerCsv } from "@/lib/customer/parse-customer-csv";
+import { ensureDriveFoldersForCustomers } from "@/lib/customer/ensure-customer-drive-folders";
+import { ensureCustomerDriveFolder } from "@/lib/google/drive";
+import { isDriveConfigured } from "@/lib/google/client";
 import { withAnyPermission, withPermission } from "@/lib/permissions/check";
 import type { CreateCustomerInput } from "@/lib/types";
 
@@ -47,12 +50,36 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await bulkCreateCustomers(session.tenantId, rows);
-        return NextResponse.json(result, { status: 201 });
+        const drive = await ensureDriveFoldersForCustomers(
+          session.tenantId,
+          result.createdCustomers
+        );
+        return NextResponse.json({ ...result, ...drive }, { status: 201 });
       }
 
       const body = (await request.json()) as CreateCustomerInput;
       const customer = await createCustomer(session.tenantId, body);
-      return NextResponse.json({ customer }, { status: 201 });
+
+      let driveFolderId: string | null = null;
+      let driveWarning: string | undefined;
+      if (isDriveConfigured()) {
+        try {
+          driveFolderId = await ensureCustomerDriveFolder(
+            session.tenantId,
+            customer.id,
+            customer.name
+          );
+        } catch (e) {
+          driveWarning =
+            e instanceof Error ? e.message : "Google Drive フォルダ作成に失敗しました";
+          console.error("[customers] drive folder failed:", e);
+        }
+      }
+
+      return NextResponse.json(
+        { customer, driveFolderId, driveWarning },
+        { status: 201 }
+      );
     } catch (e) {
       const message =
         e instanceof Error ? formatDbError(e.message) : "登録に失敗しました";

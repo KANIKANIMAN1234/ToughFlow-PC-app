@@ -597,13 +597,25 @@ export async function bulkCreateCustomers(
   });
 
   if (toInsert.length === 0) {
-    return { created: 0, skipped, errors };
+    return { created: 0, skipped, errors, createdCustomers: [] };
   }
 
-  const { error } = await supabase.from("m_customer").insert(toInsert);
+  const { data: inserted, error } = await supabase
+    .from("m_customer")
+    .insert(toInsert)
+    .select("id, name");
+
   if (error) throw new Error(formatDbError(error.message));
 
-  return { created: toInsert.length, skipped, errors };
+  return {
+    created: inserted?.length ?? 0,
+    skipped,
+    errors,
+    createdCustomers: (inserted ?? []).map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+    })),
+  };
 }
 
 export async function listMapMarkers(tenantId: string) {
