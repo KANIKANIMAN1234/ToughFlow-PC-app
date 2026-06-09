@@ -17,6 +17,13 @@ import {
   toTotalMinutes,
 } from "@/lib/employment/work-rule-defaults";
 import { buildStaffName, validateStaffInput } from "@/lib/staff/validation";
+import {
+  DEFAULT_DRIVE_FOLDER_MAPPINGS,
+  mergeDocumentFolderMap,
+  normalizeFolderSubfolderNames,
+  parseDocumentFolderMap,
+  syncMappingsToSubfolders,
+} from "@/lib/folder/document-folder-map";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDbClient } from "@/lib/supabase/context";
 import { formatDbError } from "@/lib/db/errors";
@@ -1478,15 +1485,7 @@ export async function getDashboardSummary(
   };
 }
 
-const DEFAULT_SUBFOLDERS = [
-  "経費",
-  "日報",
-  "現地調査",
-  "報告書",
-  "見積",
-  "作業完了報告",
-  "請求",
-];
+const DEFAULT_SUBFOLDERS = Object.values(DEFAULT_DRIVE_FOLDER_MAPPINGS);
 
 export async function getFolderSettings(
   tenantId: string
@@ -1500,7 +1499,7 @@ export async function getFolderSettings(
       .maybeSingle(),
     supabase
       .from("m_folder_template")
-      .select("subfolder_names, project_name_pattern")
+      .select("subfolder_names, project_name_pattern, document_folder_map")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
   ]);
@@ -1509,14 +1508,24 @@ export async function getFolderSettings(
   if (templateRes.error) throw new Error(templateRes.error.message);
 
   const subfolders = templateRes.data?.subfolder_names;
+  const subfolderNames = Array.isArray(subfolders)
+    ? (subfolders as string[])
+    : DEFAULT_SUBFOLDERS;
+  const documentFolderMap = syncMappingsToSubfolders(
+    subfolderNames,
+    parseDocumentFolderMap(templateRes.data?.document_folder_map)
+  );
+
   return {
     driveRootFolderId: tenantRes.data?.drive_root_folder_id ?? "",
     mailProcessedFolderId: tenantRes.data?.mail_processed_folder_id ?? "",
     projectNamePattern:
       templateRes.data?.project_name_pattern ?? "{date}_{name}",
-    subfolderNames: Array.isArray(subfolders)
-      ? (subfolders as string[])
-      : DEFAULT_SUBFOLDERS,
+    subfolderNames: normalizeFolderSubfolderNames(
+      subfolderNames,
+      documentFolderMap
+    ),
+    documentFolderMap,
   };
 }
 
@@ -1525,7 +1534,20 @@ export async function updateFolderSettings(
   patch: Partial<FolderSettings>
 ): Promise<FolderSettings> {
   const current = await getFolderSettings(tenantId);
-  const next = { ...current, ...patch };
+  const mergedMap = mergeDocumentFolderMap(patch.documentFolderMap ?? current.documentFolderMap);
+  const syncedMap = syncMappingsToSubfolders(
+    patch.subfolderNames ?? current.subfolderNames,
+    mergedMap
+  );
+  const next = {
+    ...current,
+    ...patch,
+    documentFolderMap: syncedMap,
+    subfolderNames: normalizeFolderSubfolderNames(
+      patch.subfolderNames ?? current.subfolderNames,
+      syncedMap
+    ),
+  };
   const supabase = getDbClient();
 
   const { error: tenantError } = await supabase
@@ -1547,6 +1569,7 @@ export async function updateFolderSettings(
   const templatePayload = {
     subfolder_names: next.subfolderNames,
     project_name_pattern: next.projectNamePattern,
+    document_folder_map: next.documentFolderMap,
   };
 
   if (existing?.id) {

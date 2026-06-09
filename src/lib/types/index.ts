@@ -1,3 +1,5 @@
+import type { DriveFolderMappings } from "@/lib/folder/document-folder-map";
+
 export type UserRole = "admin" | "office" | "manager" | "field" | "partner";
 
 export interface User {
@@ -376,7 +378,10 @@ export interface FolderSettings {
   mailProcessedFolderId: string;
   projectNamePattern: string;
   subfolderNames: string[];
+  documentFolderMap: DriveFolderMappings;
 }
+
+export type { DriveDocumentType, DriveFolderMappings } from "@/lib/folder/document-folder-map";
 
 export type StaffType =
   | "unclassified"
