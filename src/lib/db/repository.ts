@@ -52,8 +52,36 @@ type DbProjectRow = {
   name: string;
   status: string;
   sales_amount: number | null;
+  estimated_amount: number | null;
+  gross_margin_rate: number | null;
   m_customer: DbCustomer | DbCustomer[];
 };
+
+function resolveProjectMargins(row: {
+  sales_amount: number | null;
+  estimated_amount: number | null;
+  gross_margin_rate: number | null;
+}): { costAmount?: number; grossProfit?: number } {
+  const sales =
+    row.sales_amount != null ? Number(row.sales_amount) : undefined;
+  const estimated =
+    row.estimated_amount != null ? Number(row.estimated_amount) : undefined;
+  const rate =
+    row.gross_margin_rate != null ? Number(row.gross_margin_rate) : undefined;
+
+  if (sales == null) return {};
+
+  if (estimated != null) {
+    return { costAmount: estimated, grossProfit: sales - estimated };
+  }
+
+  if (rate != null) {
+    const grossProfit = Math.round(sales * (rate / 100));
+    return { costAmount: sales - grossProfit, grossProfit };
+  }
+
+  return {};
+}
 
 function unwrapJoin<T>(value: T | T[] | null): T | null {
   if (value == null) return null;
@@ -64,6 +92,7 @@ function mapProject(row: DbProjectRow): Project {
   const customer = unwrapJoin(row.m_customer);
   const customerName = customer?.name ?? "";
   const address = customer?.address ?? "";
+  const margins = resolveProjectMargins(row);
   return {
     id: row.id,
     name: row.name,
@@ -74,6 +103,8 @@ function mapProject(row: DbProjectRow): Project {
     billingClient: customerName,
     clientContact: "",
     salesAmount: row.sales_amount ? Number(row.sales_amount) : undefined,
+    costAmount: margins.costAmount,
+    grossProfit: margins.grossProfit,
     status: row.status === "closed" ? "completed" : "active",
   };
 }
@@ -244,7 +275,9 @@ export async function listProjects(
 
   let query = supabase
     .from("m_project")
-    .select("id, tenant_id, name, status, sales_amount, m_customer(name, address)")
+    .select(
+      "id, tenant_id, name, status, sales_amount, estimated_amount, gross_margin_rate, m_customer(name, address)"
+    )
     .eq("tenant_id", tenantId)
     .neq("status", "draft")
     .order("name");

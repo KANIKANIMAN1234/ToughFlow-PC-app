@@ -48,6 +48,8 @@ export interface Project {
   billingClient: string;
   clientContact?: string;
   salesAmount?: number;
+  costAmount?: number;
+  grossProfit?: number;
   status: "active" | "completed";
 }
 

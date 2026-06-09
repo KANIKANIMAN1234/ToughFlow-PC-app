@@ -21,7 +21,7 @@ export default function ProjectsPage() {
   if (authLoading || !user) {
     return (
       <AppShell title="案件一覧" breadcrumbs={["ToughFlow", "案件"]}>
-        <TableSkeleton rows={6} cols={5} />
+        <TableSkeleton rows={6} cols={7} />
       </AppShell>
     );
   }
@@ -30,7 +30,7 @@ export default function ProjectsPage() {
     <AppShell title="案件一覧" breadcrumbs={["ToughFlow", "案件"]}>
       <Card title="SC-050 案件一覧">
         {isLoading && !data ? (
-          <TableSkeleton rows={6} cols={5} />
+          <TableSkeleton rows={6} cols={7} />
         ) : (
           <DataTable
             columns={[
@@ -38,13 +38,17 @@ export default function ProjectsPage() {
               { key: "customer", label: "顧客" },
               { key: "address", label: "現場住所" },
               { key: "sales", label: "受注金額" },
+              { key: "cost", label: "原価" },
+              { key: "gross", label: "粗利" },
               { key: "status", label: "状態" },
             ]}
             rows={projects.map((p) => ({
               name: p.name,
               customer: p.customerName,
               address: p.siteAddress,
-              sales: p.salesAmount ? formatYen(p.salesAmount) : "—",
+              sales: p.salesAmount != null ? formatYen(p.salesAmount) : "—",
+              cost: p.costAmount != null ? formatYen(p.costAmount) : "—",
+              gross: p.grossProfit != null ? formatYen(p.grossProfit) : "—",
               status: (
                 <Badge tone={p.status === "active" ? "success" : "default"}>
                   {p.status}
