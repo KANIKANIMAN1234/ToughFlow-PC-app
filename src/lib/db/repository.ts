@@ -161,6 +161,53 @@ const MASTER_TABLE: Record<MasterType, string> = {
   payees: "m_payee",
 };
 
+export async function listActiveTenantIds(): Promise<string[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("m_tenant")
+    .select("id")
+    .eq("status", "active");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => row.id as string);
+}
+
+/** Cron 等で RLS コンテキストを張るための管理者ユーザー */
+export async function getTenantAdminUser(
+  tenantId: string
+): Promise<User | null> {
+  const supabase = createAdminClient();
+  const { data: tenant, error: tenantError } = await supabase
+    .from("m_tenant")
+    .select("id, name")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (tenantError) throw new Error(tenantError.message);
+  if (!tenant) return null;
+
+  const { data: user, error: userError } = await supabase
+    .from("m_user")
+    .select("id, name, role, tenant_id")
+    .eq("tenant_id", tenantId)
+    .eq("role", "admin")
+    .eq("is_active", true)
+    .order("name")
+    .limit(1)
+    .maybeSingle();
+
+  if (userError) throw new Error(userError.message);
+  if (!user) return null;
+
+  return {
+    id: user.id as string,
+    name: user.name as string,
+    role: user.role as UserRole,
+    tenantId: user.tenant_id as string,
+    tenantName: tenant.name as string,
+  };
+}
+
 export async function loginUser(
   tenantCode: string,
   userName: string,

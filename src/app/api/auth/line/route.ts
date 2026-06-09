@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   }
 
   const config = getLineConfig();
-  if (!config.enabled) {
+  if (!config.loginEnabled) {
     return NextResponse.redirect(
       new URL("/login?error=LINE Login が未設定です", request.url)
     );
