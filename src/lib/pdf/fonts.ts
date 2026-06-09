@@ -3,13 +3,9 @@ import { Font } from "@react-pdf/renderer";
 
 let registered = false;
 
-/** @fontsource/noto-sans-jp の woff を参照（CDN 404 回避） */
+/** public/fonts に配置（Vercel サーバーレスでも node_modules より確実に参照できる） */
 function fontPath(filename: string) {
-  return path.join(
-    process.cwd(),
-    "node_modules/@fontsource/noto-sans-jp/files",
-    filename
-  );
+  return path.join(process.cwd(), "public/fonts", filename);
 }
 
 export function registerPdfFonts() {
