@@ -1,3 +1,4 @@
+import { DEFAULT_OVERTIME_CALC_TYPE_CODE } from "@/lib/employment/overtime-calc-seed";
 import type { EmploymentWorkRuleInput } from "@/lib/types";
 
 export const DEFAULT_EMPLOYMENT_WORK_RULE: EmploymentWorkRuleInput = {
@@ -7,7 +8,7 @@ export const DEFAULT_EMPLOYMENT_WORK_RULE: EmploymentWorkRuleInput = {
   scheduledLimitHours: 8,
   scheduledLimitMinutes: 0,
   overtimeRatePercent: 25,
-  overtimeCalcType: "greater_of_day_or_week",
+  overtimeCalcType: DEFAULT_OVERTIME_CALC_TYPE_CODE,
   overtimeDayThresholdHours: 8,
   overtimeDayThresholdMinutes: 0,
   overtimeWeekThresholdHours: 40,

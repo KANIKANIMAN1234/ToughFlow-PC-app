@@ -370,9 +370,24 @@ export interface PartnerShareSettings {
   partners: TenantUser[];
 }
 
-export type EmploymentScheduledCalcType = "daily";
+export type EmploymentScheduledCalcType =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly"
+  | "shift";
 
-export type EmploymentOvertimeCalcType = "greater_of_day_or_week";
+/** m_employment_overtime_calc_type.code */
+export type EmploymentOvertimeCalcType = string;
+
+export interface EmploymentOvertimeCalcTypeMaster {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
 
 export interface EmploymentWorkRuleInput {
   groupKey: string;

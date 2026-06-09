@@ -6,12 +6,17 @@ import { useApi } from "@/hooks/useApi";
 import { DEFAULT_EMPLOYMENT_WORK_RULE } from "@/lib/employment/work-rule-defaults";
 import {
   GROUP_OPTIONS,
-  OVERTIME_CALC_OPTIONS,
+  overtimeCalcTypeOptions,
   SCHEDULED_CALC_OPTIONS,
   workRuleScopeLabel,
 } from "@/lib/employment/work-rule-labels";
 import { STAFF_TYPE_OPTIONS } from "@/lib/staff/constants";
-import type { EmploymentWorkRule, EmploymentWorkRuleInput, StaffType } from "@/lib/types";
+import type {
+  EmploymentOvertimeCalcTypeMaster,
+  EmploymentWorkRule,
+  EmploymentWorkRuleInput,
+  StaffType,
+} from "@/lib/types";
 import { api } from "@/lib/utils";
 
 const HOUR_OPTIONS = Array.from({ length: 25 }, (_, i) => i);
@@ -69,8 +74,16 @@ export function WorkRuleSettingsForm() {
   const { data, isLoading, mutate } = useApi<{ rules: EmploymentWorkRule[] }>(
     "/api/admin/settings?section=employment_work_rules"
   );
+  const { data: overtimeCalcData, isLoading: overtimeCalcLoading } = useApi<{
+    overtimeCalcTypes: EmploymentOvertimeCalcTypeMaster[];
+  }>("/api/admin/settings?section=employment_overtime_calc_types");
 
   const rules = data?.rules ?? [];
+  const overtimeCalcTypes = overtimeCalcData?.overtimeCalcTypes ?? [];
+  const overtimeCalcOptions = useMemo(
+    () => overtimeCalcTypeOptions(overtimeCalcTypes),
+    [overtimeCalcTypes]
+  );
   const [filterGroup, setFilterGroup] = useState("");
   const [filterStaffType, setFilterStaffType] = useState<StaffType | "">("");
   const [selectedRuleId, setSelectedRuleId] = useState<string>("");
@@ -165,7 +178,7 @@ export function WorkRuleSettingsForm() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || overtimeCalcLoading) {
     return <p className="text-caption text-apple-glyph">読み込み中…</p>;
   }
 
@@ -299,7 +312,7 @@ export function WorkRuleSettingsForm() {
                     }
                     className="block w-full rounded-lg border border-surface-border px-2 py-1.5"
                   >
-                    {OVERTIME_CALC_OPTIONS.map((opt) => (
+                    {overtimeCalcOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
                       </option>

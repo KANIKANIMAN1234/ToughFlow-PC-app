@@ -5,6 +5,7 @@ import {
   workDateJST,
 } from "@/lib/attendance/state";
 import { hashPassword } from "@/lib/auth/password";
+import { EMPLOYMENT_OVERTIME_CALC_SEED } from "@/lib/employment/overtime-calc-seed";
 import {
   DEFAULT_EMPLOYMENT_WORK_RULE,
   fromTotalMinutes,
@@ -47,6 +48,7 @@ import type {
   SiteSurveyMasters,
   SiteSurveyTool,
   SiteSurveyWorkType,
+  EmploymentOvertimeCalcTypeMaster,
   EmploymentWorkRule,
   EmploymentWorkRuleInput,
   PrescribedWorkDaysType,
@@ -2013,6 +2015,74 @@ export async function updatePartnerShareSettings(
   return getPartnerShareSettings(tenantId);
 }
 
+function mapOvertimeCalcTypeRow(
+  row: Record<string, unknown>
+): EmploymentOvertimeCalcTypeMaster {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    code: row.code as string,
+    name: row.name as string,
+    sortOrder: row.sort_order as number,
+    isActive: row.is_active as boolean,
+  };
+}
+
+async function ensureEmploymentOvertimeCalcTypes(
+  tenantId: string
+): Promise<void> {
+  const supabase = getDbClient();
+  const { count, error } = await supabase
+    .from("m_employment_overtime_calc_type")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId);
+
+  if (error) throw new Error(error.message);
+  if ((count ?? 0) > 0) return;
+
+  const rows = EMPLOYMENT_OVERTIME_CALC_SEED.map((item, index) => ({
+    tenant_id: tenantId,
+    code: item.code,
+    name: item.name,
+    sort_order: index + 1,
+    is_active: true,
+  }));
+
+  const { error: insertError } = await supabase
+    .from("m_employment_overtime_calc_type")
+    .insert(rows);
+
+  if (insertError) throw new Error(insertError.message);
+}
+
+export async function listEmploymentOvertimeCalcTypes(
+  tenantId: string
+): Promise<EmploymentOvertimeCalcTypeMaster[]> {
+  await ensureEmploymentOvertimeCalcTypes(tenantId);
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_employment_overtime_calc_type")
+    .select("id, tenant_id, code, name, sort_order, is_active")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) =>
+    mapOvertimeCalcTypeRow(row as Record<string, unknown>)
+  );
+}
+
+async function assertValidOvertimeCalcType(
+  tenantId: string,
+  code: string
+): Promise<void> {
+  const types = await listEmploymentOvertimeCalcTypes(tenantId);
+  if (!types.some((item) => item.code === code)) {
+    throw new Error("残業計算区分が正しくありません");
+  }
+}
+
 function mapEmploymentWorkRuleRow(
   row: Record<string, unknown>
 ): EmploymentWorkRule {
@@ -2187,6 +2257,7 @@ export async function upsertEmploymentWorkRule(
   updatedBy?: string,
   ruleId?: string
 ): Promise<EmploymentWorkRule> {
+  await assertValidOvertimeCalcType(tenantId, input.overtimeCalcType);
   const supabase = getDbClient();
   const payload = buildEmploymentWorkRuleDbPayload(input, updatedBy);
 

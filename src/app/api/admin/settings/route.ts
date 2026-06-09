@@ -8,6 +8,7 @@ import {
   getRolePermissionMatrix,
   getTenantStaff,
   getUserPermissionOverrides,
+  listEmploymentOvertimeCalcTypes,
   listEmploymentWorkRules,
   listTenantStaff,
   updateFolderSettings,
@@ -60,6 +61,12 @@ export async function GET(request: NextRequest) {
         case "employment_work_rules": {
           const rules = await listEmploymentWorkRules(session.tenantId);
           return NextResponse.json({ rules });
+        }
+        case "employment_overtime_calc_types": {
+          const overtimeCalcTypes = await listEmploymentOvertimeCalcTypes(
+            session.tenantId
+          );
+          return NextResponse.json({ overtimeCalcTypes });
         }
         case "employment_work_rule": {
           const ruleId = request.nextUrl.searchParams.get("ruleId") ?? undefined;
