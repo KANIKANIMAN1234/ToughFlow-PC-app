@@ -18,6 +18,7 @@ import {
 } from "@/lib/employment/work-rule-defaults";
 import { buildStaffName, validateStaffInput } from "@/lib/staff/validation";
 import {
+  buildFolderSettingsFields,
   DEFAULT_DRIVE_FOLDER_MAPPINGS,
   mergeDocumentFolderMap,
   normalizeFolderSubfolderNames,
@@ -1487,46 +1488,73 @@ export async function getDashboardSummary(
 
 const DEFAULT_SUBFOLDERS = Object.values(DEFAULT_DRIVE_FOLDER_MAPPINGS);
 
+function isMissingDocumentFolderMapColumn(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("document_folder_map") &&
+    (normalized.includes("does not exist") ||
+      normalized.includes("could not find") ||
+      normalized.includes("schema cache"))
+  );
+}
+
+async function fetchFolderTemplateRow(
+  tenantId: string
+): Promise<{
+  subfolder_names: unknown;
+  project_name_pattern: string | null;
+  document_folder_map: unknown;
+} | null> {
+  const supabase = getDbClient();
+  const withMap = await supabase
+    .from("m_folder_template")
+    .select("subfolder_names, project_name_pattern, document_folder_map")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (!withMap.error) {
+    return withMap.data;
+  }
+
+  if (isMissingDocumentFolderMapColumn(withMap.error.message)) {
+    const fallback = await supabase
+      .from("m_folder_template")
+      .select("subfolder_names, project_name_pattern")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data
+      ? { ...fallback.data, document_folder_map: null }
+      : null;
+  }
+
+  throw new Error(withMap.error.message);
+}
+
 export async function getFolderSettings(
   tenantId: string
 ): Promise<FolderSettings> {
   const supabase = getDbClient();
-  const [tenantRes, templateRes] = await Promise.all([
+  const [tenantRes, templateRow] = await Promise.all([
     supabase
       .from("m_tenant")
       .select("drive_root_folder_id, mail_processed_folder_id")
       .eq("id", tenantId)
       .maybeSingle(),
-    supabase
-      .from("m_folder_template")
-      .select("subfolder_names, project_name_pattern, document_folder_map")
-      .eq("tenant_id", tenantId)
-      .maybeSingle(),
+    fetchFolderTemplateRow(tenantId),
   ]);
 
   if (tenantRes.error) throw new Error(tenantRes.error.message);
-  if (templateRes.error) throw new Error(templateRes.error.message);
 
-  const subfolders = templateRes.data?.subfolder_names;
-  const subfolderNames = Array.isArray(subfolders)
-    ? (subfolders as string[])
-    : DEFAULT_SUBFOLDERS;
-  const documentFolderMap = syncMappingsToSubfolders(
-    subfolderNames,
-    parseDocumentFolderMap(templateRes.data?.document_folder_map)
-  );
-
-  return {
-    driveRootFolderId: tenantRes.data?.drive_root_folder_id ?? "",
-    mailProcessedFolderId: tenantRes.data?.mail_processed_folder_id ?? "",
-    projectNamePattern:
-      templateRes.data?.project_name_pattern ?? "{date}_{name}",
-    subfolderNames: normalizeFolderSubfolderNames(
-      subfolderNames,
-      documentFolderMap
-    ),
-    documentFolderMap,
-  };
+  return buildFolderSettingsFields({
+    driveRootFolderId: tenantRes.data?.drive_root_folder_id,
+    mailProcessedFolderId: tenantRes.data?.mail_processed_folder_id,
+    projectNamePattern: templateRow?.project_name_pattern,
+    subfolderNames: Array.isArray(templateRow?.subfolder_names)
+      ? (templateRow.subfolder_names as string[])
+      : DEFAULT_SUBFOLDERS,
+    documentFolderMap: parseDocumentFolderMap(templateRow?.document_folder_map),
+  });
 }
 
 export async function updateFolderSettings(
@@ -1571,17 +1599,33 @@ export async function updateFolderSettings(
     project_name_pattern: next.projectNamePattern,
     document_folder_map: next.documentFolderMap,
   };
+  const templatePayloadWithoutMap = {
+    subfolder_names: next.subfolderNames,
+    project_name_pattern: next.projectNamePattern,
+  };
 
   if (existing?.id) {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("m_folder_template")
       .update(templatePayload)
       .eq("tenant_id", tenantId);
+    if (error && isMissingDocumentFolderMapColumn(error.message)) {
+      ({ error } = await supabase
+        .from("m_folder_template")
+        .update(templatePayloadWithoutMap)
+        .eq("tenant_id", tenantId));
+    }
     if (error) throw new Error(error.message);
   } else {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("m_folder_template")
       .insert({ tenant_id: tenantId, ...templatePayload });
+    if (error && isMissingDocumentFolderMapColumn(error.message)) {
+      ({ error } = await supabase.from("m_folder_template").insert({
+        tenant_id: tenantId,
+        ...templatePayloadWithoutMap,
+      }));
+    }
     if (error) throw new Error(error.message);
   }
 

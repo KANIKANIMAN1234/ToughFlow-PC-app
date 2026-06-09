@@ -94,3 +94,34 @@ export function normalizeFolderSubfolderNames(
   }
   return [...names];
 }
+
+export function buildFolderSettingsFields(input: {
+  driveRootFolderId?: string | null;
+  mailProcessedFolderId?: string | null;
+  projectNamePattern?: string | null;
+  subfolderNames?: string[] | null;
+  documentFolderMap?: Partial<DriveFolderMappings> | null;
+}): {
+  driveRootFolderId: string;
+  mailProcessedFolderId: string;
+  projectNamePattern: string;
+  subfolderNames: string[];
+  documentFolderMap: DriveFolderMappings;
+} {
+  const resolvedSubfolders =
+    Array.isArray(input.subfolderNames) && input.subfolderNames.length > 0
+      ? input.subfolderNames.filter(Boolean)
+      : Object.values(DEFAULT_DRIVE_FOLDER_MAPPINGS);
+  const documentFolderMap = syncMappingsToSubfolders(
+    resolvedSubfolders,
+    mergeDocumentFolderMap(input.documentFolderMap)
+  );
+
+  return {
+    driveRootFolderId: input.driveRootFolderId ?? "",
+    mailProcessedFolderId: input.mailProcessedFolderId ?? "",
+    projectNamePattern: input.projectNamePattern ?? "{date}_{name}",
+    subfolderNames: normalizeFolderSubfolderNames(resolvedSubfolders, documentFolderMap),
+    documentFolderMap,
+  };
+}

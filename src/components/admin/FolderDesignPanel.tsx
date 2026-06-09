@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/Input";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { useApi } from "@/hooks/useApi";
 import {
+  buildFolderSettingsFields,
   DRIVE_DOCUMENT_TYPES,
   DRIVE_DOCUMENT_TYPE_LABELS,
+  mergeDocumentFolderMap,
   syncMappingsToSubfolders,
   type DriveDocumentType,
 } from "@/lib/folder/document-folder-map";
@@ -22,20 +24,61 @@ function mappingPreviewLines(folder: FolderSettings): string[] {
   );
 }
 
+function normalizeFolder(raw: Partial<FolderSettings> | undefined): FolderSettings | null {
+  if (!raw) return null;
+  return buildFolderSettingsFields(raw);
+}
+
+function selectOptions(folder: FolderSettings, type: DriveDocumentType): string[] {
+  const base =
+    folder.subfolderNames.length > 0
+      ? folder.subfolderNames
+      : Object.values(folder.documentFolderMap);
+  const current = folder.documentFolderMap[type];
+  if (current && !base.includes(current)) {
+    return [...base, current];
+  }
+  return base;
+}
+
 export function FolderDesignPanel() {
-  const { data, isLoading, mutate } = useApi<{ folder: FolderSettings }>(
+  const { data, isLoading, error, mutate } = useApi<{ folder: FolderSettings }>(
     "/api/admin/settings?section=folder"
   );
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FolderSettings | null>(null);
 
-  const folder = form ?? data?.folder;
+  const folder = form ?? normalizeFolder(data?.folder);
 
   if (isLoading && !folder) {
     return <TableSkeleton rows={4} cols={2} />;
   }
 
-  if (!folder) return null;
+  if (error) {
+    return (
+      <Card title="フォルダ設計">
+        <p className="text-caption text-red-600">
+          設定の取得に失敗しました: {error.message}
+        </p>
+        <Button className="mt-4" onClick={() => void mutate()}>
+          再読み込み
+        </Button>
+      </Card>
+    );
+  }
+
+  if (!folder) {
+    return (
+      <Card title="フォルダ設計">
+        <p className="text-caption text-apple-glyph">
+          フォルダ設定を読み込めませんでした。
+        </p>
+        <Button className="mt-4" onClick={() => void mutate()}>
+          再読み込み
+        </Button>
+      </Card>
+    );
+  }
 
   async function handleSave() {
     if (!folder) return;
@@ -51,11 +94,11 @@ export function FolderDesignPanel() {
   }
 
   function update(patch: Partial<FolderSettings>) {
-    const base = { ...folder!, ...patch };
+    const base = buildFolderSettingsFields({ ...folder!, ...patch });
     const subfolderNames = patch.subfolderNames ?? base.subfolderNames;
     const documentFolderMap = syncMappingsToSubfolders(
       subfolderNames,
-      patch.documentFolderMap ?? base.documentFolderMap
+      mergeDocumentFolderMap(patch.documentFolderMap ?? base.documentFolderMap)
     );
     setForm({ ...base, subfolderNames, documentFolderMap });
   }
@@ -68,9 +111,6 @@ export function FolderDesignPanel() {
       },
     });
   }
-
-  const subfolderOptions =
-    folder.subfolderNames.length > 0 ? folder.subfolderNames : ["（サブフォルダ未設定）"];
 
   return (
     <div className="space-y-6">
@@ -134,9 +174,9 @@ export function FolderDesignPanel() {
                 className="rounded-xl border border-surface-border px-3 py-2 text-caption"
                 value={folder.documentFolderMap[type]}
                 onChange={(e) => updateDocumentFolder(type, e.target.value)}
-                disabled={folder.subfolderNames.length === 0}
+                disabled={selectOptions(folder, type).length === 0}
               >
-                {subfolderOptions.map((name) => (
+                {selectOptions(folder, type).map((name) => (
                   <option key={`${type}-${name}`} value={name}>
                     {name}
                   </option>
