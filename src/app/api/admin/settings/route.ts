@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  copyAgreement36FromPreviousYear,
   createTenantStaff,
   findEmploymentWorkRuleByScope,
+  getAgreement36Settings,
   getEmploymentWorkRule,
   getFolderSettings,
   getPartnerShareSettings,
@@ -17,12 +19,16 @@ import {
   updateTenantStaff,
   updateUserPermissionOverrides,
   updateUserRole,
+  upsertAgreement36Fiscal,
+  upsertAgreement36Global,
   upsertEmploymentWorkRule,
   deactivateTenantUser,
 } from "@/lib/db/repository";
 import { withPermission } from "@/lib/permissions/check";
 import type {
   AccessLevel,
+  Agreement36FiscalInput,
+  Agreement36GlobalInput,
   EmploymentWorkRuleInput,
   FolderSettings,
   PartnerDefaultMethod,
@@ -67,6 +73,16 @@ export async function GET(request: NextRequest) {
             session.tenantId
           );
           return NextResponse.json({ overtimeCalcTypes });
+        }
+        case "employment_agreement_36": {
+          const fiscalYear = Number(
+            request.nextUrl.searchParams.get("fiscalYear")
+          );
+          const data = await getAgreement36Settings(
+            session.tenantId,
+            fiscalYear > 0 ? fiscalYear : new Date().getFullYear()
+          );
+          return NextResponse.json(data);
         }
         case "employment_work_rule": {
           const ruleId = request.nextUrl.searchParams.get("ruleId") ?? undefined;
@@ -207,6 +223,47 @@ export async function PATCH(request: NextRequest) {
             session.id
           );
           return NextResponse.json({ users });
+        }
+        case "employment_agreement_36": {
+          const global = body.global as Agreement36GlobalInput | undefined;
+          const fiscal = body.fiscal as Agreement36FiscalInput | undefined;
+          if (global) {
+            await upsertAgreement36Global(
+              session.tenantId,
+              global,
+              session.id
+            );
+          }
+          const savedFiscal = fiscal
+            ? await upsertAgreement36Fiscal(
+                session.tenantId,
+                fiscal,
+                session.id
+              )
+            : undefined;
+          const refreshed = await getAgreement36Settings(
+            session.tenantId,
+            fiscal?.fiscalYear ?? new Date().getFullYear()
+          );
+          return NextResponse.json({
+            ...refreshed,
+            fiscal: savedFiscal ?? refreshed.fiscal,
+          });
+        }
+        case "employment_agreement_36_copy": {
+          const fiscalYear = Number(body.fiscalYear);
+          if (!fiscalYear) {
+            return NextResponse.json(
+              { error: "fiscalYear required" },
+              { status: 400 }
+            );
+          }
+          const fiscal = await copyAgreement36FromPreviousYear(
+            session.tenantId,
+            fiscalYear,
+            session.id
+          );
+          return NextResponse.json({ fiscal });
         }
         case "employment_work_rule": {
           const rule = await upsertEmploymentWorkRule(

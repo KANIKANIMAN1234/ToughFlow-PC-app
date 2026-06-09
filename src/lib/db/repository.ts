@@ -7,6 +7,11 @@ import {
 import { hashPassword } from "@/lib/auth/password";
 import { EMPLOYMENT_OVERTIME_CALC_SEED } from "@/lib/employment/overtime-calc-seed";
 import {
+  AGREEMENT_36_GLOBAL_FISCAL_YEAR,
+  DEFAULT_AGREEMENT_36_FISCAL,
+  DEFAULT_AGREEMENT_36_GLOBAL,
+} from "@/lib/employment/agreement-36-defaults";
+import {
   DEFAULT_EMPLOYMENT_WORK_RULE,
   fromTotalMinutes,
   toTotalMinutes,
@@ -48,6 +53,10 @@ import type {
   SiteSurveyMasters,
   SiteSurveyTool,
   SiteSurveyWorkType,
+  Agreement36Fiscal,
+  Agreement36FiscalInput,
+  Agreement36Global,
+  Agreement36GlobalInput,
   EmploymentOvertimeCalcTypeMaster,
   EmploymentWorkRule,
   EmploymentWorkRuleInput,
@@ -2301,4 +2310,299 @@ export async function upsertEmploymentWorkRule(
 
   if (error) throw new Error(error.message);
   return mapEmploymentWorkRuleRow(data as Record<string, unknown>);
+}
+
+function mapAgreement36GlobalRow(
+  row: Record<string, unknown>
+): Agreement36Global {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    isEnabled: row.is_enabled as boolean,
+    startMonth: row.start_month as number,
+    startDay: row.start_day as number,
+    agreementVersion: row.agreement_version as Agreement36Global["agreementVersion"],
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function mapAgreement36FiscalRow(
+  row: Record<string, unknown>
+): Agreement36Fiscal {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    fiscalYear: row.fiscal_year as number,
+    specialDailyHours: row.special_daily_hours as number,
+    specialMonthlyHours: row.special_monthly_hours as number,
+    specialExceedCount: row.special_exceed_count as number,
+    specialYearlyHours: row.special_yearly_hours as number,
+    alertDailyEnabled: row.alert_daily_enabled as boolean,
+    alertDailyHours: row.alert_daily_hours as number,
+    alertWeeklyEnabled: row.alert_weekly_enabled as boolean,
+    alertWeeklyHours: row.alert_weekly_hours as number,
+    alertMonthlyEnabled: row.alert_monthly_enabled as boolean,
+    alertMonthlyHours: row.alert_monthly_hours as number,
+    alertAvg26Enabled: row.alert_avg_2_6_enabled as boolean,
+    alertAvg26Hours: row.alert_avg_2_6_hours as number,
+    alertYearlyEnabled: row.alert_yearly_enabled as boolean,
+    alertYearlyHours: row.alert_yearly_hours as number,
+    alertExceedCountEnabled: row.alert_exceed_count_enabled as boolean,
+    alertExceedCount: row.alert_exceed_count as number,
+    notifyEmployee: row.notify_employee as boolean,
+    notifyAdmin: row.notify_admin as boolean,
+    notifyCustom: row.notify_custom as boolean,
+    notifyCustomUserId: (row.notify_custom_user_id as string | null) ?? null,
+    notifyCustomEmail: (row.notify_custom_email as string | null) ?? "",
+    updatedAt: row.updated_at as string,
+  };
+}
+
+function buildAgreement36GlobalPayload(
+  input: Agreement36GlobalInput,
+  updatedBy?: string
+) {
+  return {
+    fiscal_year: AGREEMENT_36_GLOBAL_FISCAL_YEAR,
+    group_key: "",
+    staff_type: null,
+    is_enabled: input.isEnabled,
+    start_month: input.startMonth,
+    start_day: input.startDay,
+    agreement_version: input.agreementVersion,
+    updated_at: new Date().toISOString(),
+    updated_by: updatedBy ?? null,
+  };
+}
+
+function buildAgreement36FiscalPayload(
+  input: Agreement36FiscalInput,
+  updatedBy?: string
+) {
+  return {
+    fiscal_year: input.fiscalYear,
+    group_key: "",
+    staff_type: null,
+    special_daily_hours: input.specialDailyHours,
+    special_monthly_hours: input.specialMonthlyHours,
+    special_exceed_count: input.specialExceedCount,
+    special_yearly_hours: input.specialYearlyHours,
+    alert_daily_enabled: input.alertDailyEnabled,
+    alert_daily_hours: input.alertDailyHours,
+    alert_weekly_enabled: input.alertWeeklyEnabled,
+    alert_weekly_hours: input.alertWeeklyHours,
+    alert_monthly_enabled: input.alertMonthlyEnabled,
+    alert_monthly_hours: input.alertMonthlyHours,
+    alert_avg_2_6_enabled: input.alertAvg26Enabled,
+    alert_avg_2_6_hours: input.alertAvg26Hours,
+    alert_yearly_enabled: input.alertYearlyEnabled,
+    alert_yearly_hours: input.alertYearlyHours,
+    alert_exceed_count_enabled: input.alertExceedCountEnabled,
+    alert_exceed_count: input.alertExceedCount,
+    notify_employee: input.notifyEmployee,
+    notify_admin: input.notifyAdmin,
+    notify_custom: input.notifyCustom,
+    notify_custom_user_id: input.notifyCustomUserId,
+    notify_custom_email: input.notifyCustomEmail?.trim() || null,
+    updated_at: new Date().toISOString(),
+    updated_by: updatedBy ?? null,
+  };
+}
+
+async function ensureDefaultAgreement36Global(
+  tenantId: string
+): Promise<void> {
+  const supabase = getDbClient();
+  const { count, error } = await supabase
+    .from("m_employment_agreement_36")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("fiscal_year", AGREEMENT_36_GLOBAL_FISCAL_YEAR);
+
+  if (error) throw new Error(error.message);
+  if ((count ?? 0) > 0) return;
+
+  const { error: insertError } = await supabase
+    .from("m_employment_agreement_36")
+    .insert({
+      tenant_id: tenantId,
+      ...buildAgreement36GlobalPayload(DEFAULT_AGREEMENT_36_GLOBAL),
+      ...buildAgreement36FiscalPayload({
+        ...DEFAULT_AGREEMENT_36_FISCAL,
+        fiscalYear: AGREEMENT_36_GLOBAL_FISCAL_YEAR,
+      }),
+    });
+
+  if (insertError) throw new Error(insertError.message);
+}
+
+async function getAgreement36Row(
+  tenantId: string,
+  fiscalYear: number
+): Promise<Record<string, unknown> | null> {
+  const supabase = getDbClient();
+  const { data, error } = await supabase
+    .from("m_employment_agreement_36")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("fiscal_year", fiscalYear)
+    .eq("group_key", "")
+    .is("staff_type", null)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
+export async function getAgreement36Settings(
+  tenantId: string,
+  fiscalYear: number
+): Promise<{ global: Agreement36Global; fiscal: Agreement36Fiscal }> {
+  await ensureDefaultAgreement36Global(tenantId);
+  const supabase = getDbClient();
+
+  let globalRow = await getAgreement36Row(
+    tenantId,
+    AGREEMENT_36_GLOBAL_FISCAL_YEAR
+  );
+  if (!globalRow) {
+    const { data, error } = await supabase
+      .from("m_employment_agreement_36")
+      .insert({
+        tenant_id: tenantId,
+        ...buildAgreement36GlobalPayload(DEFAULT_AGREEMENT_36_GLOBAL),
+        ...buildAgreement36FiscalPayload({
+          ...DEFAULT_AGREEMENT_36_FISCAL,
+          fiscalYear: AGREEMENT_36_GLOBAL_FISCAL_YEAR,
+        }),
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    globalRow = data as Record<string, unknown>;
+  }
+
+  let fiscalRow = await getAgreement36Row(tenantId, fiscalYear);
+  if (!fiscalRow) {
+    const { data, error } = await supabase
+      .from("m_employment_agreement_36")
+      .insert({
+        tenant_id: tenantId,
+        ...buildAgreement36GlobalPayload(DEFAULT_AGREEMENT_36_GLOBAL),
+        ...buildAgreement36FiscalPayload({
+          ...DEFAULT_AGREEMENT_36_FISCAL,
+          fiscalYear,
+        }),
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    fiscalRow = data as Record<string, unknown>;
+  }
+
+  return {
+    global: mapAgreement36GlobalRow(globalRow),
+    fiscal: mapAgreement36FiscalRow(fiscalRow),
+  };
+}
+
+export async function upsertAgreement36Global(
+  tenantId: string,
+  input: Agreement36GlobalInput,
+  updatedBy?: string
+): Promise<Agreement36Global> {
+  await ensureDefaultAgreement36Global(tenantId);
+  const supabase = getDbClient();
+  const existing = await getAgreement36Row(
+    tenantId,
+    AGREEMENT_36_GLOBAL_FISCAL_YEAR
+  );
+  const payload = buildAgreement36GlobalPayload(input, updatedBy);
+
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from("m_employment_agreement_36")
+      .update(payload)
+      .eq("tenant_id", tenantId)
+      .eq("id", existing.id as string)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return mapAgreement36GlobalRow(data as Record<string, unknown>);
+  }
+
+  const { data, error } = await supabase
+    .from("m_employment_agreement_36")
+    .insert({
+      tenant_id: tenantId,
+      ...payload,
+      ...buildAgreement36FiscalPayload({
+        ...DEFAULT_AGREEMENT_36_FISCAL,
+        fiscalYear: AGREEMENT_36_GLOBAL_FISCAL_YEAR,
+      }),
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapAgreement36GlobalRow(data as Record<string, unknown>);
+}
+
+export async function upsertAgreement36Fiscal(
+  tenantId: string,
+  input: Agreement36FiscalInput,
+  updatedBy?: string
+): Promise<Agreement36Fiscal> {
+  const supabase = getDbClient();
+  const existing = await getAgreement36Row(tenantId, input.fiscalYear);
+  const payload = buildAgreement36FiscalPayload(input, updatedBy);
+
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from("m_employment_agreement_36")
+      .update(payload)
+      .eq("tenant_id", tenantId)
+      .eq("id", existing.id as string)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return mapAgreement36FiscalRow(data as Record<string, unknown>);
+  }
+
+  const global = await getAgreement36Row(
+    tenantId,
+    AGREEMENT_36_GLOBAL_FISCAL_YEAR
+  );
+  const globalInput = global
+    ? mapAgreement36GlobalRow(global)
+    : DEFAULT_AGREEMENT_36_GLOBAL;
+
+  const { data, error } = await supabase
+    .from("m_employment_agreement_36")
+    .insert({
+      tenant_id: tenantId,
+      ...buildAgreement36GlobalPayload(globalInput, updatedBy),
+      ...payload,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return mapAgreement36FiscalRow(data as Record<string, unknown>);
+}
+
+export async function copyAgreement36FromPreviousYear(
+  tenantId: string,
+  fiscalYear: number,
+  updatedBy?: string
+): Promise<Agreement36Fiscal> {
+  const previous = await getAgreement36Row(tenantId, fiscalYear - 1);
+  if (!previous) {
+    throw new Error(`${fiscalYear - 1}年度の設定がありません`);
+  }
+
+  const prevFiscal = mapAgreement36FiscalRow(previous);
+  return upsertAgreement36Fiscal(
+    tenantId,
+    { ...prevFiscal, fiscalYear },
+    updatedBy
+  );
 }

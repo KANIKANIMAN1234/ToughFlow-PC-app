@@ -418,3 +418,49 @@ export interface EmploymentWorkRule extends EmploymentWorkRuleInput {
   tenantId: string;
   updatedAt: string;
 }
+
+export type Agreement36Version = "new" | "old";
+
+export interface Agreement36GlobalInput {
+  isEnabled: boolean;
+  startMonth: number;
+  startDay: number;
+  agreementVersion: Agreement36Version;
+}
+
+export interface Agreement36FiscalInput {
+  fiscalYear: number;
+  specialDailyHours: number;
+  specialMonthlyHours: number;
+  specialExceedCount: number;
+  specialYearlyHours: number;
+  alertDailyEnabled: boolean;
+  alertDailyHours: number;
+  alertWeeklyEnabled: boolean;
+  alertWeeklyHours: number;
+  alertMonthlyEnabled: boolean;
+  alertMonthlyHours: number;
+  alertAvg26Enabled: boolean;
+  alertAvg26Hours: number;
+  alertYearlyEnabled: boolean;
+  alertYearlyHours: number;
+  alertExceedCountEnabled: boolean;
+  alertExceedCount: number;
+  notifyEmployee: boolean;
+  notifyAdmin: boolean;
+  notifyCustom: boolean;
+  notifyCustomUserId: string | null;
+  notifyCustomEmail: string;
+}
+
+export interface Agreement36Global extends Agreement36GlobalInput {
+  id: string;
+  tenantId: string;
+  updatedAt: string;
+}
+
+export interface Agreement36Fiscal extends Agreement36FiscalInput {
+  id: string;
+  tenantId: string;
+  updatedAt: string;
+}
