@@ -192,6 +192,14 @@ export function normalizeFolderSubfolderNames(
   subfolderNames: string[],
   documentFolderMap: DriveFolderMappings
 ): string[] {
+  return collectDriveSubfolderNames(subfolderNames, documentFolderMap);
+}
+
+/** テンプレート一覧と書類マッピングの両方に登場するフォルダ名を統合 */
+export function collectDriveSubfolderNames(
+  subfolderNames: string[],
+  documentFolderMap: DriveFolderMappings
+): string[] {
   const names = new Set(
     subfolderNames.map((name) => name.trim()).filter(Boolean)
   );

@@ -6,6 +6,7 @@ import {
   updateCustomerDriveFolderId,
   updateProjectDriveFolderId,
 } from "@/lib/db/repository";
+import { collectDriveSubfolderNames } from "@/lib/folder/document-folder-map";
 import { getDriveClient, getDriveRootFolderIdFallback, isDriveConfigured } from "./client";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -242,7 +243,11 @@ export async function ensureProjectDriveFolders(
   }
 
   const subfolders: Record<string, string> = {};
-  for (const name of settings.subfolderNames) {
+  const folderNames = collectDriveSubfolderNames(
+    settings.subfolderNames,
+    settings.documentFolderMap
+  );
+  for (const name of folderNames) {
     subfolders[name] = await findOrCreateFolder(
       drive,
       projectFolderId,
