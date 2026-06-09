@@ -10,6 +10,7 @@ import {
   MONTH_OPTIONS,
   PRESCRIBED_WORK_DAYS_OPTIONS,
   STAFF_TYPE_OPTIONS,
+  staffTypeUsesHourlyWage,
   WORK_HOUR_OPTIONS,
   WORK_MINUTE_OPTIONS,
 } from "@/lib/staff/constants";
@@ -216,6 +217,8 @@ export function StaffForm({
     onChange({ ...value, ...partial });
   }
 
+  const showHourlyWage = staffTypeUsesHourlyWage(value.staffType);
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
@@ -282,24 +285,32 @@ export function StaffForm({
           <SelectField
             label="スタッフ種別"
             value={value.staffType}
-            onChange={(staffType) =>
-              patch({ staffType: staffType as StaffInput["staffType"] })
-            }
+            onChange={(staffType) => {
+              const nextType = staffType as StaffInput["staffType"];
+              patch({
+                staffType: nextType,
+                hourlyWage: staffTypeUsesHourlyWage(nextType)
+                  ? value.hourlyWage
+                  : null,
+              });
+            }}
             options={STAFF_TYPE_OPTIONS}
           />
 
-          <Input
-            label="時給"
-            type="number"
-            min={0}
-            placeholder="半角数字"
-            value={value.hourlyWage ?? ""}
-            onChange={(e) =>
-              patch({
-                hourlyWage: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-          />
+          {showHourlyWage && (
+            <Input
+              label="時給"
+              type="number"
+              min={0}
+              placeholder="半角数字"
+              value={value.hourlyWage ?? ""}
+              onChange={(e) =>
+                patch({
+                  hourlyWage: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+            />
+          )}
 
           <SelectField
             label="所定労働日数区分（週 / 1年間）"

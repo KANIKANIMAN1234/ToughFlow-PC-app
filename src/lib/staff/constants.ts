@@ -8,6 +8,11 @@ export const STAFF_TYPE_OPTIONS: { value: StaffType; label: string }[] = [
   { value: "part_time", label: "パート・アルバイト" },
 ];
 
+/** 正社員・契約社員以外は時給を登録する */
+export function staffTypeUsesHourlyWage(staffType: StaffType): boolean {
+  return staffType !== "full_time" && staffType !== "contract";
+}
+
 export const PRESCRIBED_WORK_DAYS_OPTIONS: {
   value: PrescribedWorkDaysType;
   label: string;
