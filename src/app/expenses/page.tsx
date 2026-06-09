@@ -13,10 +13,12 @@ import type { Expense } from "@/lib/types";
 
 export default function ExpensesPage() {
   const { user, authLoading } = useAuthGuard();
-  const { data, isLoading, mutate, isValidating } = useApi<{ expenses: Expense[] }>(
-    user ? "/api/expenses?status=submitted" : null,
-    { refreshInterval: 5000, revalidateOnFocus: true }
-  );
+  const { data, isLoading, mutate, isValidating, error } = useApi<{
+    expenses: Expense[];
+  }>(user ? "/api/expenses?status=submitted" : null, {
+    refreshInterval: 5000,
+    revalidateOnFocus: true,
+  });
 
   const expenses = data?.expenses ?? [];
 
@@ -49,6 +51,11 @@ export default function ExpensesPage() {
           </span>
         }
       >
+        {error && (
+          <p className="mb-4 text-caption text-red-600">
+            取得に失敗しました: {error.message}
+          </p>
+        )}
         {isLoading && !data ? (
           <TableSkeleton rows={6} cols={7} />
         ) : (

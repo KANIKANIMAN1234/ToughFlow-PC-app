@@ -551,7 +551,8 @@ export async function listExpenses(
   tenantId: string,
   filter?: { status?: Expense["status"]; userId?: string }
 ): Promise<Expense[]> {
-  const supabase = getDbClient();
+  // 承認一覧は他ユーザーの経費を参照するため service role で取得（API 層で権限チェック済み）
+  const supabase = createAdminClient();
   let query = supabase
     .from("t_expense")
     .select(
@@ -599,7 +600,7 @@ export async function updateExpenseStatus(
   status: Expense["status"],
   approvedBy?: string
 ): Promise<Expense | null> {
-  const supabase = getDbClient();
+  const supabase = createAdminClient();
   const patch: Record<string, unknown> = { status };
   if (status === "approved") {
     patch.approved_at = new Date().toISOString();
