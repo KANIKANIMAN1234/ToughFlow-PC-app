@@ -17,6 +17,7 @@ import type {
   AccessLevel,
   BankAccount,
   CompanyInfo,
+  Customer,
   DailyReport,
   DailyReportContent,
   DispatchRow,
@@ -287,6 +288,45 @@ export async function listProjects(
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data as DbProjectRow[]).map(mapProject);
+}
+
+export async function listCustomers(tenantId: string): Promise<Customer[]> {
+  const supabase = getDbClient();
+
+  const { data: customers, error: customerError } = await supabase
+    .from("m_customer")
+    .select("id, name, address, lat, lng")
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (customerError) throw new Error(customerError.message);
+
+  const { data: projects, error: projectError } = await supabase
+    .from("m_project")
+    .select("customer_id")
+    .eq("tenant_id", tenantId)
+    .neq("status", "draft");
+
+  if (projectError) throw new Error(projectError.message);
+
+  const countByCustomer = new Map<string, number>();
+  for (const project of projects ?? []) {
+    if (!project.customer_id) continue;
+    countByCustomer.set(
+      project.customer_id,
+      (countByCustomer.get(project.customer_id) ?? 0) + 1
+    );
+  }
+
+  return (customers ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    address: row.address?.trim() ?? "",
+    lat: row.lat != null ? Number(row.lat) : undefined,
+    lng: row.lng != null ? Number(row.lng) : undefined,
+    projectCount: countByCustomer.get(row.id) ?? 0,
+    hasMapPin: row.lat != null && row.lng != null,
+  }));
 }
 
 export async function listMapMarkers(tenantId: string) {

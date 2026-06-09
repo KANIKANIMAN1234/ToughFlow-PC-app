@@ -38,6 +38,16 @@ export interface Payee extends MasterBase {
   contact?: string;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  projectCount: number;
+  hasMapPin: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
