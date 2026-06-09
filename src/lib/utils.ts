@@ -13,6 +13,27 @@ export function formatDate(date: string | Date) {
   });
 }
 
+export function formatDateTime(date: string | Date) {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function daysAgoISO(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function formatYen(amount: number) {
   return new Intl.NumberFormat("ja-JP", {
     style: "currency",

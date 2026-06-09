@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Calendar,
   ClipboardList,
+  Clock,
   FileText,
   Home,
   Map,
@@ -103,6 +104,12 @@ export const PC_NAV_GROUPS: NavGroupDef[] = [
         label: "支払精算",
         icon: Wallet,
         permissions: ["vendor_payment_view"],
+      },
+      {
+        href: "/attendance/history",
+        label: "勤怠履歴",
+        icon: Clock,
+        permissions: ["attendance_register", "attendance_view_all"],
       },
     ],
   },

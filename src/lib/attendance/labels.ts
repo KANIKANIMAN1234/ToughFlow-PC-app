@@ -53,3 +53,8 @@ export function getPunchButtonClassName(
     ? PUNCH_BUTTON_STYLES[type].enabled
     : PUNCH_BUTTON_STYLES[type].disabled;
 }
+
+export const PUNCH_SOURCE_LABELS: Record<"pc" | "mobile", string> = {
+  pc: "PC",
+  mobile: "モバイル",
+};

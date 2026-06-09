@@ -157,8 +157,8 @@ export const DEFAULT_PERMISSION_MATRIX: Record<
   },
   attendance_view_all: {
     admin: "allow",
-    office: "allow",
-    manager: "conditional",
+    office: "deny",
+    manager: "allow",
     field: "deny",
     partner: "deny",
   },

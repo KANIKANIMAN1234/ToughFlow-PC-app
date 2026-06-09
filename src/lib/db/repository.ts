@@ -31,6 +31,7 @@ import type {
   PermissionDef,
   Project,
   ShareNotifyMethod,
+  AttendanceHistoryEntry,
   AttendancePunch,
   AttendancePunchType,
   AttendanceStatus,
@@ -698,6 +699,45 @@ export async function createAttendancePunch(
 
   if (error) throw new Error(error.message);
   return getAttendanceStatus(tenantId, userId, workDate);
+}
+
+export type AttendanceHistoryQuery = {
+  userId?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+};
+
+export async function listAttendanceHistory(
+  tenantId: string,
+  query: AttendanceHistoryQuery = {}
+): Promise<AttendanceHistoryEntry[]> {
+  const supabase = createAdminClient();
+  let dbQuery = supabase
+    .from("t_attendance_punch")
+    .select(
+      "id, user_id, punch_type, punched_at, work_date, source, note, m_user(name)"
+    )
+    .eq("tenant_id", tenantId)
+    .order("punched_at", { ascending: false })
+    .limit(query.limit ?? 500);
+
+  if (query.userId) dbQuery = dbQuery.eq("user_id", query.userId);
+  if (query.fromDate) dbQuery = dbQuery.gte("work_date", query.fromDate);
+  if (query.toDate) dbQuery = dbQuery.lte("work_date", query.toDate);
+
+  const { data, error } = await dbQuery;
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const user = unwrapJoin(
+      row.m_user as { name: string } | { name: string }[] | null
+    );
+    return {
+      ...mapAttendancePunch(row as never),
+      userName: user?.name ?? "",
+    };
+  });
 }
 
 function mapDispatchRow(row: {

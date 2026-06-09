@@ -223,6 +223,10 @@ export interface AttendanceStatus {
   allowedTypes: AttendancePunchType[];
 }
 
+export interface AttendanceHistoryEntry extends AttendancePunch {
+  userName: string;
+}
+
 export interface Expense {
   id: string;
   projectId: string;
