@@ -29,6 +29,26 @@ import {
 import { AttendancePunchBar } from "@/components/attendance/AttendancePunchBar";
 import { useEffect, useMemo, useState } from "react";
 
+const NAV_OPEN_GROUPS_KEY = "toughflow-pc-nav-open-groups";
+
+function loadOpenGroups(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(NAV_OPEN_GROUPS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveOpenGroups(groups: Record<string, boolean>) {
+  try {
+    sessionStorage.setItem(NAV_OPEN_GROUPS_KEY, JSON.stringify(groups));
+  } catch {
+    /* ignore */
+  }
+}
+
 
 
 function NavLink({
@@ -257,15 +277,9 @@ export function AppShell({
 
   const [collapsed, setCollapsed] = useState(false);
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-
-    customer: true,
-
-    customer_mgmt: true,
-
-    office: true,
-
-  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    loadOpenGroups
+  );
 
 
 
@@ -304,23 +318,25 @@ export function AppShell({
 
 
   useEffect(() => {
-
+    if (permLoading) return;
     const activeGroupId = findActiveGroupId(pathname, nav.groups);
-
-    if (activeGroupId) {
-
-      setOpenGroups((prev) => ({ ...prev, [activeGroupId]: true }));
-
-    }
-
-  }, [pathname, nav.groups]);
+    if (!activeGroupId) return;
+    setOpenGroups((prev) => {
+      if (prev[activeGroupId]) return prev;
+      const next = { ...prev, [activeGroupId]: true };
+      saveOpenGroups(next);
+      return next;
+    });
+  }, [pathname, nav.groups, permLoading]);
 
 
 
   function toggleGroup(id: string) {
-
-    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
-
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveOpenGroups(next);
+      return next;
+    });
   }
 
 
@@ -461,7 +477,7 @@ export function AppShell({
 
                   collapsed={collapsed}
 
-                  open={openGroups[group.id] ?? true}
+                  open={openGroups[group.id] ?? false}
 
                   onToggle={() => toggleGroup(group.id)}
 
