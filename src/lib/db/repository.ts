@@ -345,10 +345,11 @@ export async function listProjects(
   tenantId: string,
   options?: { userId?: string; role?: UserRole }
 ): Promise<Project[]> {
-  const supabase = getDbClient();
+  const filterByAssignment = options?.role === "field";
+  const supabase = filterByAssignment ? getDbClient() : createAdminClient();
   let assignedIds: string[] | null = null;
 
-  if (options?.role === "field" && options.userId) {
+  if (filterByAssignment && options?.userId) {
     const { data: assignments, error: assignError } = await supabase
       .from("t_project_assignment")
       .select("project_id")

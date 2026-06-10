@@ -102,7 +102,7 @@ export const DEFAULT_PERMISSION_MATRIX: Record<
   project_list_other: {
     admin: "allow",
     office: "allow",
-    manager: "conditional",
+    manager: "allow",
     field: "deny",
     partner: "deny",
   },
